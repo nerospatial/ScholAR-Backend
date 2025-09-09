@@ -1,12 +1,22 @@
 from fastapi import FastAPI
-from app.websocket.router import router as ws_router
+from fastapi.middleware.cors import CORSMiddleware
 
-app = FastAPI(title="Scholar Backend - WS Audio")
+from app.websocket.routes import register_ws_routes
 
-# Mount WebSocket routes
-app.include_router(ws_router)
+app = FastAPI(title="Scholar Backend", version="1.0.0")
 
-# Optional health check (handy for smoke tests)
+# CORS — tighten in prod
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+    allow_credentials=True,
+)
+
 @app.get("/health")
 def health():
-    return {"ok": True}
+    return {"status": "ok"}
+
+# mount the websocket endpoint(s) from app/websocket/
+register_ws_routes(app)

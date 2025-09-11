@@ -1,10 +1,11 @@
+import os
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
-import os
-
+from app.db.database import Base, engine
 from app.websocket.routes import register_ws_routes
-from app.controllers.google_auth_controller import router
+from app.api.v1.endpoints.google_auth import router as google_auth_router
+from app.api.v1.endpoints.auth import router as auth_router
 app = FastAPI(title="Scholar Backend", version="1.0.0")
 
 # CORS — tighten in prod
@@ -27,7 +28,11 @@ app.add_middleware(
 def health():
     return {"status": "ok"}
 
+# Create tables if they do not exist
+Base.metadata.create_all(bind=engine)
+
 # mount the websocket endpoint(s) from app/websocket/
 register_ws_routes(app)
 
-app.include_router(router, prefix="/api/v1")
+app.include_router(google_auth_router, prefix="/api/v1")
+app.include_router(auth_router, prefix="/api/v1")

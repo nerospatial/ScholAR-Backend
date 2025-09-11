@@ -1,6 +1,9 @@
 from pydantic import BaseModel
 
 class GoogleUser(BaseModel):
-    sub: str
+    google_sub: str
     email: str
-    name: str
+    username: str
+
+    class Config:
+        from_orm = True

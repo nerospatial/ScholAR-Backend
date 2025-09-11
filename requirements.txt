@@ -1,0 +1,9 @@
+websockets>=12.0
+google-genai>=1.33.0
+fastapi>=0.111
+uvicorn>=0.30
+psycopg2-binary>=2.9.5
+sqlalchemy>=2.0.0
+python-dotenv>=1.0.0
+authlib>=1.2.0
+itsdangerous>=2.0.0

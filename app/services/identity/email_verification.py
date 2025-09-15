@@ -12,9 +12,11 @@ from app.infra.email.sender import EmailSender
 from app.models.user import User
 from app.services.tokens.token_utils import generate_tokens
 
+
 CODE_TTL_S = int(os.getenv("CODE_TTL_SECONDS", str(10 * 60)))     # 10 minutes
 MAX_VERIFY_ATTEMPTS = int(os.getenv("MAX_VERIFY_ATTEMPTS", "3"))  # 3
 MAX_RESEND_ATTEMPTS = int(os.getenv("MAX_RESEND_ATTEMPTS", "3"))  # 3
+RESEND_COOLDOWN_S = int(os.getenv("RESEND_COOLDOWN_SECONDS", "60"))  # 60 seconds default
 
 
 # HMAC pepper for code hashing

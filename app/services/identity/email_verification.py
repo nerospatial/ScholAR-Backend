@@ -22,7 +22,7 @@ PEPPER = os.getenv("SESSION_SECRET_KEY") or os.getenv("SECRET_KEY") or secrets.t
 # Secret for JWT (falls back to SECRET_KEY)
 TOKEN_SECRET = os.getenv("JWT_SECRET") or os.getenv("SECRET_KEY") or "dev_secret_change_me"
 
-# ---------- Helpers ----------
+# helpers for resend rate limiting
 def _normalize_email(email: str) -> str:
     email = (email or "").strip().lower()
     if "@" not in email:
@@ -55,7 +55,7 @@ def _tokens_for_user(db: Session, email: str) -> Dict:
         "expiresIn": 3600,  # keep in sync with JWTManager default
     }
 
-# ---------- Public API ----------
+# public api
 async def issue_code(email: str, *, sender: Optional[EmailSender] = None) -> Dict:
     """Create & email a fresh 6-digit code; replaces any prior record."""
     email_n = _normalize_email(email)
@@ -137,11 +137,17 @@ async def resend_code(email: str, *, sender: Optional[EmailSender] = None):
         headers = {}
         if retry_after:
             headers["Retry-After"] = str(int(retry_after))
+        message = (
+            "You have hit the resend rate limit. Please wait before requesting another code.\n\n"
+            "Need help? Contact support@scholar-glasses.com."
+        ) if retry_after else (
+            "Resend limit reached. Try again later.\n\nNeed help? Contact support@scholar-glasses.com."
+        )
         return (
             False,
             {
                 "error": "rate_limited",
-                "message": "Please wait before requesting another code" if retry_after else "Resend limit reached. Try again later",
+                "message": message,
             },
             headers,
         )
@@ -150,8 +156,12 @@ async def resend_code(email: str, *, sender: Optional[EmailSender] = None):
     otp_store.set(email_n, code_hash, salt)
     otp_store.mark_resend(email_n)
 
-    body = f"Your ScholAR verification code is {code}. It expires in {CODE_TTL_S//60} minutes."
-    await sender.send_verification_code(email_n, subject="Your ScholAR verification code", body=body)
+    subject = "Your ScholAR verification code"
+    body = (
+        f"Your code is {code}. It expires in {CODE_TTL_S//60} minutes. If you didn’t request this, ignore.\n\n"
+        "Need help? Contact support@scholar-glasses.com."
+    )
+    await sender.send_verification_code(email_n, subject=subject, body=body)
 
     attempts_remaining = max(0, MAX_RESEND_ATTEMPTS - (otp_store.get(email_n).resend_count))
     return True, {

@@ -72,12 +72,20 @@ class InMemoryOtpStore:
             if delta < cooldown_s:
                 return False, cooldown_s - delta
             return True, 0
-
-    def mark_resend(self, email: str) -> None:
+        
+    def mark_resend_and_update_code_hash(self, email: str, new_code_hash: str, new_salt: str) -> None:
+        """Mark resend and update with new OTP code hash and salt."""
         with self._lock:
             rec = self._d.get(email.lower())
             if rec:
+                # Update with new OTP data
+                rec.code_hash = new_code_hash
+                rec.salt = new_salt
+                # Update resend tracking
                 rec.resend_count += 1
                 rec.last_resend_at_s = now_s()
-
+                # Reset attempts for the new OTP
+                rec.attempts = 0
+                # Reset used flag since it's a new code
+                rec.used = False
 otp_store = InMemoryOtpStore()

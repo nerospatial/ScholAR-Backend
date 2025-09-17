@@ -5,7 +5,7 @@ from app.schemas.user import UserCreate, UserLogin, UserOut
 from app.schemas.verify_code import VerifyRequest, TokenResponse
 from app.schemas.resend_code import ResendRequest, ResendResponse
 from app.services.auth import signup, verify_code, authenticate_user
-from app.services.identity.email_verification import verify_code as verify_email_code, resend_code as resend_verification_code
+from app.services.identity.email_verification import verify_code as verify_email_code, resend_code as resend_verification_code, issue_code
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -50,9 +50,23 @@ async def resend_code_route(req: ResendRequest):
     http_code = error_map.get(code, status.HTTP_500_INTERNAL_SERVER_ERROR)
     raise HTTPException(status_code=http_code, detail={"code": http_code, "message": result.get("message")}, headers=headers or {})
 
-@router.post("/login", response_model=UserOut)
-def login_route(user_in: UserLogin, db: db_dependency):
+
+# 2) Login — request verification code
+@router.post("/login")
+async def login_request_code(user_in: UserLogin, db: db_dependency):
     user = authenticate_user(str(user_in.email), user_in.password, db)
     if not user:
-        raise HTTPException(status_code=400, detail="Invalid credentials.")
-    return user
+        # 401 Unauthorized for wrong credentials or user not found
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"code": "unauthorized", "message": "Invalid credentials."}
+        )
+    try:
+        result = await issue_code(str(user_in.email))
+        return result
+    except Exception as e:
+        # 429 Too Many Requests or other errors from issue_code
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail={"code": "server_error", "message": str(e)}
+        )

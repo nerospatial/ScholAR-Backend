@@ -14,10 +14,6 @@ class UserCreate(BaseModel):
             raise ValueError('Password must contain at least one letter')
         return v
 
-class EmailVerification(BaseModel):
-    email: EmailStr
-    code: str
-
 class UserLogin(BaseModel):
     email: EmailStr
     password: str

@@ -7,6 +7,7 @@ from passlib.context import CryptContext
 from app.models.user import User
 from app.services.identity.email_verification import issue_code, verify_code
 from app.utils.otp_utils import normalize_email_address
+from app.utils.validators import validate_password
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -39,10 +40,11 @@ def complete_password_reset_verification(email: str, verification_code: str, new
             "message": "Invalid email format"
         }
     
-    if not validate_password_requirements(new_password):
+    is_valid, validation_message = validate_password(new_password)
+    if not is_valid:
         return 400, {
             "error": "invalid_password", 
-            "message": "Password does not meet requirements"
+            "message": validation_message
         }
     
     verification_successful, verification_result = verify_code(normalized_email, verification_code, db)
@@ -87,9 +89,3 @@ def update_user_password(email: str, new_password: str, db: Session) -> None:
     if user:
         user.hashed_password = pwd_context.hash(new_password)
         db.commit()
-
-def validate_password_requirements(password: str) -> bool:
-    """Validate password meets minimum requirements"""
-    if not password or len(password) < 8:
-        return False
-    return True

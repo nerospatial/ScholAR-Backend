@@ -9,11 +9,14 @@ class JWTManager:
         self,
         secret_key: str,
         algorithm: str = "HS256",
-        access_token_expire_minutes: int = 60,   # 1 hour
+        access_token_expire_minutes: int = 60,
         refresh_token_expire_days: int = 7,
         issuer: Optional[str] = None,
         audience: Optional[str] = None,
     ):
+        if not secret_key or secret_key == "dev_secret_change_me":
+            raise ValueError("JWT secret key must be set for production use")
+        
         self.secret_key = secret_key
         self.algorithm = algorithm
         self.access_token_expire_minutes = access_token_expire_minutes
@@ -21,68 +24,80 @@ class JWTManager:
         self.issuer = issuer
         self.audience = audience
 
-    # create tokens
-
-    def create_access_token(self, data: Dict[str, Any]) -> str:
-        now = datetime.now(timezone.utc)
-        to_encode = {
-            **data,
+    def create_access_token(self, user_data: Dict[str, Any]) -> str:
+        """Create JWT access token with user data"""
+        current_time = datetime.now(timezone.utc)
+        token_payload = {
+            **user_data,
             "type": "access",
-            "iat": int(now.timestamp()),
-            "nbf": int(now.timestamp()),
-            "exp": int((now + timedelta(minutes=self.access_token_expire_minutes)).timestamp()),
+            "iat": int(current_time.timestamp()),
+            "nbf": int(current_time.timestamp()),
+            "exp": int((current_time + timedelta(minutes=self.access_token_expire_minutes)).timestamp()),
+            "jti": secrets.token_urlsafe(16),
         }
-        if self.issuer: to_encode["iss"] = self.issuer
-        if self.audience: to_encode["aud"] = self.audience
-        # add jti if not provided
-        to_encode.setdefault("jti", secrets.token_urlsafe(16))
-        return jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
+        
+        if self.issuer:
+            token_payload["iss"] = self.issuer
+        if self.audience:
+            token_payload["aud"] = self.audience
+            
+        return jwt.encode(token_payload, self.secret_key, algorithm=self.algorithm)
 
-    def create_refresh_token(self, data: Dict[str, Any]) -> str:
-        now = datetime.now(timezone.utc)
-        to_encode = {
-            **data,
+    def create_refresh_token(self, user_data: Dict[str, Any]) -> str:
+        """Create JWT refresh token with user data"""
+        current_time = datetime.now(timezone.utc)
+        token_payload = {
+            **user_data,
             "type": "refresh",
-            "iat": int(now.timestamp()),
-            "nbf": int(now.timestamp()),
-            "exp": int((now + timedelta(days=self.refresh_token_expire_days)).timestamp()),
+            "iat": int(current_time.timestamp()),
+            "nbf": int(current_time.timestamp()),
+            "exp": int((current_time + timedelta(days=self.refresh_token_expire_days)).timestamp()),
+            "jti": secrets.token_urlsafe(24),  # Longer for refresh tokens
         }
-        if self.issuer: to_encode["iss"] = self.issuer
-        if self.audience: to_encode["aud"] = self.audience
-        # refresh tokens should always have a unique jti for rotation/revocation
-        to_encode.setdefault("jti", secrets.token_urlsafe(24))
-        return jwt.encode(to_encode, self.secret_key, algorithm=self.algorithm)
-
-    # decode tokens
+        
+        if self.issuer:
+            token_payload["iss"] = self.issuer
+        if self.audience:
+            token_payload["aud"] = self.audience
+            
+        return jwt.encode(token_payload, self.secret_key, algorithm=self.algorithm)
 
     def decode_access_token(self, token: str) -> Dict[str, Any]:
-        payload = self._decode(token)
+        """Decode and verify access token"""
+        payload = self._decode_and_verify_token(token)
         if payload.get("type") != "access":
-            raise jwt.InvalidTokenError("Wrong token type")
+            raise jwt.InvalidTokenError("Expected access token, got different type")
         return payload
 
     def decode_refresh_token(self, token: str) -> Dict[str, Any]:
-        payload = self._decode(token)
+        """Decode and verify refresh token"""
+        payload = self._decode_and_verify_token(token)
         if payload.get("type") != "refresh":
-            raise jwt.InvalidTokenError("Wrong token type")
+            raise jwt.InvalidTokenError("Expected refresh token, got different type")
         return payload
 
-    # Back-compat with your existing code that calls verify_token(...)
     def decode_token(self, token: str) -> Dict[str, Any]:
-        return self._decode(token)
+        """Generic token decoder - use specific methods when possible"""
+        return self._decode_and_verify_token(token)
 
-    # internal decode helper
-    def _decode(self, token: str) -> Dict[str, Any]:
-        options = {
+    def _decode_and_verify_token(self, token: str) -> Dict[str, Any]:
+        """Internal token verification with all required claims"""
+        verification_options = {
             "require": ["exp", "iat", "nbf", "type", "sub", "jti"],
         }
-        audience = self.audience or None
-        issuer = self.issuer or None
-        return jwt.decode(
-            token,
-            self.secret_key,
-            algorithms=[self.algorithm],
-            audience=audience,
-            issuer=issuer,
-            options=options,
-        )
+        
+        try:
+            return jwt.decode(
+                token,
+                self.secret_key,
+                algorithms=[self.algorithm],
+                audience=self.audience,
+                issuer=self.issuer,
+                options=verification_options,
+            )
+        except jwt.ExpiredSignatureError:
+            raise jwt.InvalidTokenError("Token has expired")
+        except jwt.InvalidSignatureError:
+            raise jwt.InvalidTokenError("Invalid token signature")
+        except jwt.InvalidTokenError as error:
+            raise jwt.InvalidTokenError(f"Token validation failed: {str(error)}")

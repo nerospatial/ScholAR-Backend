@@ -3,6 +3,7 @@ import hashlib
 import os
 import secrets
 from typing import Tuple
+from app.infra.cache.otp_store import now_s
 
 PEPPER = os.getenv("SESSION_SECRET_KEY") or os.getenv("SECRET_KEY") or secrets.token_hex(32)
 
@@ -19,7 +20,6 @@ def hash_otp_code_with_salt(code: str, salt: str) -> str:
     return hmac.new(PEPPER.encode(), msg, hashlib.sha256).hexdigest()
 
 def is_otp_expired(created_at_s: int, ttl_seconds: int) -> bool:
-    from app.infra.cache.otp_store import now_s
     return (now_s() - created_at_s) >= ttl_seconds
 
 def generate_six_digit_otp_with_hash() -> Tuple[str, str, str]:

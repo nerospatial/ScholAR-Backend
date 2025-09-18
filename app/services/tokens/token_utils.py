@@ -1,41 +1,45 @@
 from .jwt_manager import JWTManager
 from typing import Dict, Any, Tuple
-import os, secrets, jwt
+import os
 
 # Config via env so Android's expected 3600s lines up with backend
-ACCESS_MIN = int(os.getenv("ACCESS_TOKEN_MINUTES", "60"))
-REFRESH_DAYS = int(os.getenv("REFRESH_TOKEN_DAYS", "7"))
-JWT_ALG = os.getenv("JWT_ALG", "HS256")
-JWT_SECRET = os.getenv("JWT_SECRET") or os.getenv("SECRET_KEY", "dev_secret_change_me")
-JWT_ISS = os.getenv("JWT_ISS")  # optional
-JWT_AUD = os.getenv("JWT_AUD")  # optional
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_MINUTES", "60"))
+REFRESH_TOKEN_EXPIRE_DAYS = int(os.getenv("REFRESH_TOKEN_DAYS", "7"))
+JWT_ALGORITHM = os.getenv("JWT_ALG", "HS256")
+JWT_SECRET_KEY = os.getenv("JWT_SECRET") or os.getenv("SECRET_KEY", "dev_secret_change_me")
+JWT_ISSUER = os.getenv("JWT_ISS")
+JWT_AUDIENCE = os.getenv("JWT_AUD")
 
-_manager = JWTManager(
-    secret_key=JWT_SECRET,
-    algorithm=JWT_ALG,
-    access_token_expire_minutes=ACCESS_MIN,
-    refresh_token_expire_days=REFRESH_DAYS,
-    issuer=JWT_ISS,
-    audience=JWT_AUD,
+jwt_token_manager = JWTManager(
+    secret_key=JWT_SECRET_KEY,
+    algorithm=JWT_ALGORITHM,
+    access_token_expire_minutes=ACCESS_TOKEN_EXPIRE_MINUTES,
+    refresh_token_expire_days=REFRESH_TOKEN_EXPIRE_DAYS,
+    issuer=JWT_ISSUER,
+    audience=JWT_AUDIENCE,
 )
 
-def generate_tokens(user_id: str, secret_key: str = JWT_SECRET) -> Dict[str, str]:
-    access_token = _manager.create_access_token({"sub": user_id})
-    refresh_token = _manager.create_refresh_token({"sub": user_id})
+def generate_user_tokens(user_id: str) -> Dict[str, str]:
+    """Generate access and refresh tokens for authenticated user"""
+    access_token = jwt_token_manager.create_access_token({"sub": user_id})
+    refresh_token = jwt_token_manager.create_refresh_token({"sub": user_id})
     return {"access_token": access_token, "refresh_token": refresh_token}
 
-def verify_token(token: str, secret_key: str = JWT_SECRET) -> Dict[str, Any]:
-    return _manager.decode_token(token)
+def verify_access_token(token: str) -> Dict[str, Any]:
+    """Verify and decode access token payload"""
+    return jwt_token_manager.decode_access_token(token)
 
-# Helpers for /auth/refresh:
-def decode_refresh(token: str) -> Dict[str, Any]:
-    return _manager.decode_refresh_token(token)
+def verify_refresh_token(token: str) -> Dict[str, Any]:
+    """Verify and decode refresh token payload"""
+    return jwt_token_manager.decode_refresh_token(token)
 
-def rotate_refresh_token(old_refresh: str) -> Tuple[str, Dict[str, Any]]:
+def create_new_token_pair_from_refresh(old_refresh_token: str) -> Tuple[str, str, Dict[str, Any]]:
     """
-    Returns (new_refresh_token, old_payload).
-    NOTE: you should mark old_payload['jti'] as 'used'/'revoked' in your store to prevent reuse.
+    Rotate refresh token and create new token pair.
+    Returns (new_access_token, new_refresh_token, old_token_payload).
+    Caller should revoke old_token_payload['jti'] to prevent reuse.
     """
-    payload = _manager.decode_refresh_token(old_refresh)
-    new_refresh = _manager.create_refresh_token({"sub": payload["sub"]})
-    return new_refresh, payload
+    old_payload = jwt_token_manager.decode_refresh_token(old_refresh_token)
+    new_refresh_token = jwt_token_manager.create_refresh_token({"sub": old_payload["sub"]})
+    new_access_token = jwt_token_manager.create_access_token({"sub": old_payload["sub"]})
+    return new_access_token, new_refresh_token, old_payload

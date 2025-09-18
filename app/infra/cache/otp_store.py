@@ -20,7 +20,6 @@ class OtpRecord:
     last_resend_at_s: int = 0
 
 class InMemoryOtpStore:
-    """Thread-safe in-memory OTP store keyed by normalized email."""
     def __init__(self) -> None:
         self._d: Dict[str, OtpRecord] = {}
         self._lock = RLock()

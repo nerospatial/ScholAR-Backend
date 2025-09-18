@@ -1,17 +1,25 @@
 from datetime import datetime
 from pydantic import BaseModel, EmailStr, validator
-import re
+from app.utils.validators import validate_password, validate_passwords_match
 
 class UserCreate(BaseModel):
     email: EmailStr
     password: str
+    confirm_password: str
     
     @validator('password')
-    def validate_password(cls, v):
-        if len(v) < 6:
-            raise ValueError('Password must be at least 6 characters long')
-        if not re.search("[a-zA-Z]", v):
-            raise ValueError('Password must contain at least one letter')
+    def validate_password_requirements(cls, v):
+        is_valid, message = validate_password(v)
+        if not is_valid:
+            raise ValueError(message)
+        return v
+    
+    @validator('confirm_password')
+    def validate_passwords_match_field(cls, v, values):
+        if 'password' in values:
+            is_match, message = validate_passwords_match(values['password'], v)
+            if not is_match:
+                raise ValueError(message)
         return v
 
 class UserLogin(BaseModel):

@@ -4,69 +4,88 @@ from app.db.database import db_dependency
 from app.schemas.user import UserCreate, UserLogin, UserOut
 from app.schemas.verify_code import VerifyRequest, TokenResponse
 from app.schemas.resend_code import ResendRequest, ResendResponse
-from app.services.auth import signup, verify_code, authenticate_user
-from app.services.identity.email_verification import verify_code as verify_email_code, resend_code as resend_verification_code, issue_code
+from app.schemas.forgot_password import ForgotPasswordRequest, ResetPasswordRequest, ForgotPasswordResponse, ResetPasswordResponse
+from app.services.identity.registration import process_registration_request, complete_registration_verification
+from app.services.identity.login import process_login_request, complete_login_verification
+from app.services.identity.forgot_password import initiate_password_reset_request, complete_password_reset_verification
+from app.services.identity.email_verification import resend_code as resend_verification_code
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/signup")
-async def signup_route(user_in: UserCreate):
-    return await signup(user_in)
+async def signup_route(user_in: UserCreate, db: db_dependency):
+    status_code, result = await process_registration_request(str(user_in.email), user_in.password, db)
+    if status_code == 200:
+        return result
+    raise HTTPException(status_code=status_code, detail=result)
 
 
 @router.post("/verify", response_model=TokenResponse)
 def verify_code_route(req: VerifyRequest, db: db_dependency):
-    success, result = verify_email_code(str(req.email), req.code, db)
-    if success:
+    # For signup verification - complete registration
+    status_code, result = complete_registration_verification(str(req.email), req.code, db)
+    if status_code == 200:
         return result
-    error_map = {
-        "bad_request": status.HTTP_400_BAD_REQUEST,
-        "invalid_code": status.HTTP_401_UNAUTHORIZED,
-        "code_gone": status.HTTP_410_GONE,
-        "too_many_attempts": status.HTTP_423_LOCKED,
-        "rate_limited": status.HTTP_429_TOO_MANY_REQUESTS,
-        "user_not_found": status.HTTP_404_NOT_FOUND,
-    }
-    code = result.get("error", "server_error")
-    http_code = error_map.get(code, status.HTTP_500_INTERNAL_SERVER_ERROR)
-    raise HTTPException(status_code=http_code, detail={"code": http_code, "message": result.get("message")})
+    
+    # If registration verification fails, try login verification
+    if status_code in [401, 410, 423]:
+        login_status_code, login_result = complete_login_verification(str(req.email), req.code, db)
+        if login_status_code == 200:
+            return login_result
+        # Return the original registration error if login also fails
+    
+    raise HTTPException(status_code=status_code, detail=result)
 
 
 
 @router.post("/resend", response_model=ResendResponse)
 async def resend_code_route(req: ResendRequest):
     try:
-        ok, result, headers = await resend_verification_code(str(req.email))
+        success, result, headers = await resend_verification_code(str(req.email))
+        if success:
+            return result
+        
+        # Map service errors to HTTP status codes
+        error_code = result.get("error", "server_error")
+        if error_code == "rate_limited":
+            status_code = status.HTTP_429_TOO_MANY_REQUESTS
+        else:
+            status_code = status.HTTP_400_BAD_REQUEST
+            
+        raise HTTPException(
+            status_code=status_code, 
+            detail=result, 
+            headers=headers or {}
+        )
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail={"code": 500, "message": str(e)})
-    if ok:
-        return result
-    error_map = {
-        "bad_request": status.HTTP_400_BAD_REQUEST,
-        "rate_limited": status.HTTP_429_TOO_MANY_REQUESTS,
-    }
-    code = result.get("error", "server_error")
-    http_code = error_map.get(code, status.HTTP_500_INTERNAL_SERVER_ERROR)
-    raise HTTPException(status_code=http_code, detail={"code": http_code, "message": result.get("message")}, headers=headers or {})
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, 
+            detail={"error": "server_error", "message": str(e)}
+        )
 
 
-# 2) Login — request verification code
 @router.post("/login")
 async def login_request_code(user_in: UserLogin, db: db_dependency):
-    user = authenticate_user(str(user_in.email), user_in.password, db)
-    if not user:
-        # 401 Unauthorized for wrong credentials or user not found
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail={"code": "unauthorized", "message": "Invalid credentials."}
-        )
-    try:
-        result = await issue_code(str(user_in.email))
+    status_code, result = await process_login_request(str(user_in.email), user_in.password, db)
+    if status_code == 200:
         return result
-    except Exception as e:
-        # 429 Too Many Requests or other errors from issue_code
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={"code": "server_error", "message": str(e)}
-        )
+    raise HTTPException(status_code=status_code, detail=result)
+
+
+@router.post("/forgot", response_model=ForgotPasswordResponse)
+async def forgot_password_route(req: ForgotPasswordRequest, db: db_dependency):
+    """Request password reset code"""
+    status_code, result = await initiate_password_reset_request(str(req.email), db)
+    return result  # Always return 200 per auth spec
+
+
+@router.post("/reset", response_model=ResetPasswordResponse)
+async def reset_password_route(req: ResetPasswordRequest, db: db_dependency):
+    """Reset password with verification code"""
+    status_code, result = complete_password_reset_verification(str(req.email), req.code, req.new_password, db)
+    if status_code == 200:
+        return result
+    raise HTTPException(status_code=status_code, detail=result)

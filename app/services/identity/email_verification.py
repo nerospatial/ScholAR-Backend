@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.infra.cache.otp_store import otp_store
 from app.infra.email.sender import EmailSender
 from app.models.user import User
-from app.services.tokens.token_utils import generate_tokens
+from app.services.tokens.token_utils import generate_user_tokens
 from app.utils.otp_utils import (
     normalize_email_address,
     hash_otp_code_with_salt,
@@ -22,19 +22,9 @@ CODE_TTL_S = int(os.getenv("CODE_TTL_SECONDS", str(10 * 60)))
 MAX_VERIFY_ATTEMPTS = int(os.getenv("MAX_VERIFY_ATTEMPTS", "3"))
 MAX_RESEND_ATTEMPTS = int(os.getenv("MAX_RESEND_ATTEMPTS", "3"))
 RESEND_COOLDOWN_S = int(os.getenv("RESEND_COOLDOWN_SECONDS", "60"))
-
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
 TOKEN_SECRET = os.getenv("JWT_SECRET") or os.getenv("SECRET_KEY") or "dev_secret_change_me"
 
-def _tokens_for_user(db: Session, email: str) -> Dict:
-    user = db.query(User).filter(User.email == email).first()
-    if not user:
-        raise LookupError("user_not_found")
-    tokens = generate_tokens(str(user.id), TOKEN_SECRET)
-    return {
-        "accessToken": tokens["access_token"],
-        "refreshToken": tokens["refresh_token"],
-        "expiresIn": 3600,
-    }
 
 async def issue_code(email: str, *, sender: Optional[EmailSender] = None) -> Dict:
     email_normalized = normalize_email_address(email)
@@ -89,7 +79,7 @@ def verify_code(email: str, code: str, db: Session) -> Tuple[bool, Dict]:
     otp_store.invalidate(email_normalized)
     
     try:
-        token_payload = _tokens_for_user(db, email_normalized)
+        token_payload = generate_user_authentication_tokens(db, email_normalized)
     except LookupError:
         return False, {"error": "user_not_found", "message": "User not found for this email"}
 
@@ -120,8 +110,7 @@ async def resend_code(email: str, *, sender: Optional[EmailSender] = None):
         )
 
     code, salt, code_hash = generate_six_digit_otp_with_hash()
-    otp_store.set(email_normalized, code_hash, salt)
-    otp_store.mark_resend(email_normalized)
+    otp_store.mark_resend_and_update_code_hash(email_normalized, code_hash, salt)
 
     subject = "Your ScholAR verification code"
     body = (
@@ -137,3 +126,16 @@ async def resend_code(email: str, *, sender: Optional[EmailSender] = None):
         "cooldownSeconds": RESEND_COOLDOWN_S,
         "attemptsRemaining": attempts_remaining
     }, {}
+
+def generate_user_authentication_tokens(db: Session, email: str) -> Dict:
+    """Generate tokens for verified user"""
+    user = db.query(User).filter(User.email == email).first()
+    if not user:
+        raise LookupError("user_not_found")
+    
+    tokens = generate_user_tokens(str(user.id))
+    return {
+        "accessToken": tokens["access_token"],
+        "refreshToken": tokens["refresh_token"],
+        "expiresIn": ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # Convert to seconds for Android
+    }

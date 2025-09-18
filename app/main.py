@@ -1,11 +1,20 @@
 import os
 from fastapi import FastAPI
+import sys
+from pathlib import Path
+
+from app.schemas.user import UserCreate
+from app.utils.validators import validate_email
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from app.db.database import Base, engine
 from app.websocket.routes import register_ws_routes
 from app.api.v1.endpoints.google_auth import router as google_auth_router
 from app.api.v1.endpoints.auth import router as auth_router
+from dotenv import load_dotenv
+
+load_dotenv()
+
 app = FastAPI(title="Scholar Backend", version="1.0.0")
 
 # CORS — tighten in prod

@@ -7,6 +7,7 @@ from passlib.context import CryptContext
 from app.models.user import User
 from app.services.identity.email_verification import issue_code, verify_code
 from app.utils.otp_utils import normalize_email_address
+from app.utils.validators import validate_password
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -20,10 +21,11 @@ async def process_registration_request(email: str, password: str, db: Session) -
             "message": "Invalid email format"
         }
     
-    if not validate_password_requirements(password):
+    is_valid, validation_message = validate_password(password)
+    if not is_valid:
         return 400, {
             "error": "invalid_password",
-            "message": "Password does not meet requirements"
+            "message": validation_message
         }
     
     existing_user = find_user_by_email(normalized_email, db)
@@ -97,12 +99,6 @@ def activate_pending_user(email: str, db: Session) -> None:
     if user:
         user.is_verified = True
         db.commit()
-
-def validate_password_requirements(password: str) -> bool:
-    """Validate password meets minimum requirements"""
-    if not password or len(password) < 8:
-        return False
-    return True
 
 def hash_password(password: str) -> str:
     """Generate password hash using bcrypt"""

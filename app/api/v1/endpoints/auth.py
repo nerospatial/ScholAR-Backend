@@ -1,8 +1,8 @@
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, HTTPException, status
 from app.db.database import db_dependency
-from app.schemas.user import UserCreate, UserLogin, UserOut
-from app.schemas.verify_code import VerifyRequest, TokenResponse
+from app.schemas.user import UserCreate, UserLogin
+from app.schemas.verify_code import VerifyRequest, VerifyResponse
 from app.schemas.resend_code import ResendRequest, ResendResponse
 from app.schemas.forgot_password import ForgotPasswordRequest, ResetPasswordRequest, ForgotPasswordResponse, ResetPasswordResponse
 from app.services.identity.registration import process_registration_request, complete_registration_verification
@@ -21,7 +21,7 @@ async def signup_route(user_in: UserCreate, db: db_dependency):
     raise HTTPException(status_code=status_code, detail=result)
 
 
-@router.post("/verify", response_model=TokenResponse)
+@router.post("/verify", response_model=VerifyResponse)
 def verify_code_route(req: VerifyRequest, db: db_dependency):
     # For signup verification - complete registration
     status_code, result = complete_registration_verification(str(req.email), req.code, db)

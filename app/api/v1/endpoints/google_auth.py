@@ -1,17 +1,16 @@
 from fastapi import APIRouter, Request, Depends, HTTPException
 from fastapi.responses import RedirectResponse
 from app.db.database import db_dependency
-from app.services.google_auth import get_user_by_google_sub, create_user_from_google_info
+from app.services.identity.google_auth import get_user_by_google_sub, create_user_from_google_info
 from app.schemas.google_user import GoogleUser
 from authlib.integrations.starlette_client import OAuth
-from app.models.google_user import GoogleUser as GoogleUserORM
 import os
 
 router = APIRouter(prefix="/auth/google", tags=["auth"])
 
 GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
-GOOGLE_REDIRECT_URI = os.getenv("REDIRECT_URI", "http://localhost:8000/api/v1/google/callback")
+GOOGLE_REDIRECT_URI = os.getenv("REDIRECT_URI", "http://localhost:8000/api/v1/auth/google/callback")
 FRONTEND_URL = os.getenv("FRONTEND_URL")
 
 oauth = OAuth()
@@ -39,7 +38,7 @@ async def auth_google(request: Request, db: db_dependency):
         email=user_info.get("email"),
         username=user_info.get("name")
     )
-    
+    from app.models.google_user import GoogleUser as GoogleUserORM
     user = get_user_by_google_sub(google_user.google_sub, db)
     if not user:
         user = create_user_from_google_info(google_user, db)

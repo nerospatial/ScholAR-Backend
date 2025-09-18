@@ -1,4 +1,4 @@
-import app.core.smtp_config.conf as conf
+from app.core.smtp_config import conf as conf
 from fastapi_mail import FastMail, MessageSchema
 
 fast_mail = FastMail(conf)

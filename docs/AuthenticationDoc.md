@@ -357,6 +357,60 @@ Return a consistent JSON error shape, e.g.:
 
 ---
 
+## Error response format
+
+Examples
+
+Invalid OTP / expired
+
+```json
+{
+  "error": "invalid_code",
+  "message": "The verification code is invalid or expired"
+}
+```
+
+Device conflict (device already belongs to another user)
+
+```json
+{
+  "error": "device_conflict",
+  "message": "device_id already registered to a different user",
+  "details": { "existingUserId": "456" }
+}
+```
+
+User conflict (user already registered a different device)
+
+```json
+{
+  "error": "user_conflict",
+  "message": "user already registered a different device",
+  "details": { "existingDeviceId": "abc-123" }
+}
+```
+
+Rate limited
+
+```json
+{
+  "error": "rate_limited",
+  "message": "Too many requests",
+  "retryAfterSeconds": 60
+}
+```
+
+HTTP mapping guidance
+
+* 400 — validation or malformed request
+* 401 — unauthorized (invalid token / OTP)
+* 404 — resource not found (optional; avoid user enumeration)
+* 409 — conflicts (device_conflict, user_conflict, unique_constraint_violation)
+* 410 — gone (code already used)
+* 423 — locked (too many failed attempts)
+* 429 — rate limited
+
+
 ## Validation & rules
 
 * **Email:** RFC-ish format; treat case-insensitively; normalize to lowercase server-side.
@@ -398,6 +452,92 @@ Return a consistent JSON error shape, e.g.:
 * `POST /auth/refresh` — `RefreshRequest` → `TokenResponse`
 
 ---
+
+---
+
+## Device authentication
+
+These endpoints let the client prove ownership of a device via a short-lived OTP (one-time 6-digit code) and bind a device_id to a user. The client MUST provide a stable `device_id` (the server does not generate it).
+
+Usage summary:
+
+- `POST /auth/device/otp` — request an OTP for a given user id. Returns the OTP and a short-lived token used to verify the OTP.
+- `POST /auth/device` — verify OTP + short token and bind `device_id` to the user, returning full session tokens on success.
+
+### POST /auth/device/otp
+
+Request
+
+```json
+{
+  "user_id": 123
+}
+```
+
+Response (200)
+
+```json
+{
+  "otp": "123456",
+  "accessToken": "<short-lived-token-for-device-auth>", 
+  "expiresIn": 300
+}
+```
+
+Notes
+
+- `expiresIn` is the OTP TTL in seconds (default: 300s / 5m in the current implementation).
+- For privacy reasons the OTP response does NOT include the user id.
+- The short-lived `accessToken` returned here is purpose-bound (purpose: `device_auth`) and must be presented when verifying the OTP.
+
+Errors
+
+- **404** user_not_found — user does not exist.
+- **429** rate_limited — too many OTP requests.
+
+### POST /auth/device
+
+Request
+
+```json
+{
+  "user_id": 123,
+  "otp": "123456",
+  "accessToken": "<short-lived-token-for-device-auth>",
+  "device_id": "<client-generated-device-id>"
+}
+```
+
+Response (200)
+
+```json
+{
+  "userId": "123",
+  "accessToken": "<access-token>",
+  "refreshToken": "<refresh-token>",
+  "expiresIn": 3600
+}
+```
+
+Behavior & conflict semantics
+
+- The `device_id` MUST be provided by the client and is treated as a stable device identifier.
+- The backend enforces a one-to-one mapping between `user_id` and `device_id`:
+  - If the `device_id` is already registered to a different user → **409 device_conflict** with `existingUserId` in the body.
+  - If the `user_id` is already registered with a different `device_id` → **409 user_conflict** with `existingDeviceId` in the body.
+  - Concurrent registration races return **409 unique_constraint_violation** (client should retry after a short backoff).
+
+Security notes
+
+- OTPs are stored hashed server-side and invalidated after use.
+- The short-lived token binds the OTP to the user and purpose; the server validates both token and OTP when verifying.
+- Do not include `userId` in the OTP issuance response (the client already knows which user it requested the OTP for).
+
+Client guidance
+
+- Generate and persist a stable `device_id` on the client; send it with `/auth/device` when verifying the OTP. Do not expect the server to return or generate a device id.
+- If the client receives a 409 conflict, surface a clear message and ask the user to retry or contact support depending on the conflict details.
+
 
 ## Android expectations (so backend can optimize)
 

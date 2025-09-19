@@ -30,7 +30,6 @@ async def initiate_device_authentication(user_id: int, db: Session) -> Tuple[int
     )
 
     return 200, {
-        "userId": str(user_id),
         "otp": code,
         "accessToken": short_token,
         "expiresIn": DEVICE_OTP_TTL_S,

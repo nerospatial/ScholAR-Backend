@@ -5,7 +5,6 @@ class DeviceOtpRequest(BaseModel):
     user_id: int
 
 class DeviceOtpResponse(BaseModel):
-    userId: str
     otp: str
     accessToken: str
     expiresIn: int

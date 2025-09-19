@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, func
+from sqlalchemy.orm import relationship
 from app.db.database import Base
 
 class User(Base):
@@ -10,3 +11,6 @@ class User(Base):
     is_deleted = Column(Boolean, default=False)
     created_at = Column(DateTime, server_default=func.now())
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now())
+
+    # One-to-one relationship to the authenticated device record
+    authenticated_device = relationship("AuthenticatedDevice", back_populates="user", uselist=False)

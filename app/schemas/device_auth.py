@@ -5,20 +5,20 @@ class DeviceOtpRequest(BaseModel):
     user_id: int
 
 class DeviceOtpResponse(BaseModel):
-    otp: int
+    registrationToken: int
     accessToken: str
     expiresIn: int
 
 class DeviceAuthRequest(BaseModel):
     user_id: int
-    otp: str
+    registrationToken: int
     accessToken: str
     device_id: Optional[str] = None
 
-    @field_validator("otp")
-    def validate_otp_format(cls, v):
-        if not (v.isdigit() and len(v) == 6):
-            raise ValueError("OTP must be a 6-digit numeric code")
+    @field_validator("registrationToken")
+    def validate_registration_token(cls, v):
+        if not (isinstance(v, int) and 100000 <= v <= 999999):
+            raise ValueError("Registration token must be a 6-digit integer")
         return v
 
 class DeviceAuthResponse(BaseModel):

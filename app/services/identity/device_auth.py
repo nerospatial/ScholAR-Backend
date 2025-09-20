@@ -14,7 +14,7 @@ DEVICE_OTP_TTL_S = 300  # 5 minutes
 
 async def initiate_device_authentication(user_id: int, db: Session) -> Tuple[int, Dict]:
     # Verify that the user exists
-    user = db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+    user = db.query(User).filter(User.id == user_id, User.is_deleted == False, User.is_verified==True).first()
     if not user:
         return 404, {"error": "user_not_found", "message": "User not found"}
 
@@ -27,14 +27,20 @@ async def initiate_device_authentication(user_id: int, db: Session) -> Tuple[int
         {"sub": str(user_id), "purpose": "device_auth", "otp": code}
     )
 
+    # return the OTP as an integer registrationToken for client convenience
+    try:
+        reg_token = int(code)
+    except Exception:
+        reg_token = int(str(code))
+
     return 200, {
-        "otp": code,
+        "registrationToken": reg_token,
         "accessToken": short_token,
         "expiresIn": DEVICE_OTP_TTL_S,
     }
 
 
-def complete_device_authentication(user_id: int,otp: str,token: str,device_id: str,db: Session) -> Tuple[int, Dict]:
+def complete_device_authentication(user_id: int, otp: "int|str", token: str, device_id: str, db: Session) -> Tuple[int, Dict]:
     # Decode and validate the short-lived token
     try:
         payload = jwt_token_manager.decode_access_token(token)
@@ -49,8 +55,11 @@ def complete_device_authentication(user_id: int,otp: str,token: str,device_id: s
     if not rec:
         return 401, {"error": "invalid_code", "message": "No OTP issued for this user"}
 
+    # Accept registrationToken as int or string; normalize to string for hashing
+    otp_str = str(otp)
+
     expected = rec.code_hash
-    actual = hash_otp_code_with_salt(otp, rec.salt)
+    actual = hash_otp_code_with_salt(otp_str, rec.salt)
     if expected != actual:
         return 401, {"error": "invalid_code", "message": "OTP did not match"}
 

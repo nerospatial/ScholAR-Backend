@@ -27,7 +27,7 @@ def verify_device_auth(req: DeviceAuthRequest, db: db_dependency):
 		raise HTTPException(status_code=400, detail={"error": "missing_device_id", "message": "device_id is required"})
 	device_id = req.device_id
 	status_code, result = device_auth.complete_device_authentication(
-		req.user_id, req.otp, req.accessToken, device_id, db
+		req.user_id, req.registrationToken, req.accessToken, device_id, db
 	)
 	if status_code == 200:
 		return result

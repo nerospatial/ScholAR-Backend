@@ -5,7 +5,7 @@ class DeviceOtpRequest(BaseModel):
     user_id: int
 
 class DeviceOtpResponse(BaseModel):
-    otp: str
+    otp: int
     accessToken: str
     expiresIn: int
 
@@ -22,7 +22,7 @@ class DeviceAuthRequest(BaseModel):
         return v
 
 class DeviceAuthResponse(BaseModel):
-    userId: str
+    userId: int
     accessToken: str
     refreshToken: str
     expiresIn: int

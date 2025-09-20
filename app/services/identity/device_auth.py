@@ -2,8 +2,6 @@ from __future__ import annotations
 from typing import Dict, Tuple
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-import secrets
-
 from app.models.user import User
 from app.models.authenticated_device import AuthenticatedDevice
 from sqlalchemy.exc import IntegrityError
@@ -91,7 +89,7 @@ def complete_device_authentication(user_id: int,otp: str,token: str,device_id: s
     # Issue full tokens for authenticated session
     tokens = generate_user_tokens(str(user_id))
     return 200, {
-        "userId": str(user_id),
+        "userId": user_id,
         "accessToken": tokens["access_token"],
         "refreshToken": tokens["refresh_token"],
         "expiresIn": 60 * 60,  # match ACCESS_TOKEN_EXPIRE_MINUTES default

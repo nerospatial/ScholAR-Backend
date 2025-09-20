@@ -13,7 +13,7 @@ from app.schemas.device_auth import (
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/device/otp", response_model=DeviceOtpResponse)
+@router.post("/device/register", response_model=DeviceOtpResponse)
 async def request_device_otp(req: DeviceOtpRequest, db: db_dependency):
 	status_code, result = await device_auth.initiate_device_authentication(req.user_id, db)
 	if status_code == 200:
@@ -21,7 +21,7 @@ async def request_device_otp(req: DeviceOtpRequest, db: db_dependency):
 	raise HTTPException(status_code=status_code, detail=result)
 
 
-@router.post("/device", response_model=DeviceAuthResponse)
+@router.post("/device/verify", response_model=DeviceAuthResponse)
 def verify_device_auth(req: DeviceAuthRequest, db: db_dependency):
 	if not req.device_id:
 		raise HTTPException(status_code=400, detail={"error": "missing_device_id", "message": "device_id is required"})

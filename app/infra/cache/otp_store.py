@@ -77,7 +77,7 @@ class InMemoryOtpStore:
         with self._lock:
             rec = self._d.get(email.lower())
             if rec:
-                # Update with new OTP data
+                # Update existing record with new OTP data
                 rec.code_hash = new_code_hash
                 rec.salt = new_salt
                 # Update resend tracking
@@ -87,4 +87,17 @@ class InMemoryOtpStore:
                 rec.attempts = 0
                 # Reset used flag since it's a new code
                 rec.used = False
+            else:
+                # No existing record: create one for this resend.
+                # This ensures callers that immediately read the record after
+                # mark_resend_and_update_code_hash will not hit None.
+                self._d[email.lower()] = OtpRecord(
+                    code_hash=new_code_hash,
+                    salt=new_salt,
+                    created_at_s=now_s(),
+                    used=False,
+                    attempts=0,
+                    resend_count=1,
+                    last_resend_at_s=now_s(),
+                )
 otp_store = InMemoryOtpStore()

@@ -112,14 +112,16 @@ async def resend_code(email: str, *, sender: Optional[EmailSender] = None):
     code, salt, code_hash = generate_six_digit_otp_with_hash()
     otp_store.mark_resend_and_update_code_hash(email_normalized, code_hash, salt)
 
-    subject = "Your ScholAR verification code"
+    subject = "Your ScholAR verification code-after resend"
     body = (
         f"Your code is {code}. It expires in {CODE_TTL_S//60} minutes. If you didn't request this, ignore.\n\n"
         "Need help? Contact support@scholar-glasses.com."
     )
     await sender.send_verification_code(email_normalized, subject=subject, body=body)
 
-    attempts_remaining = max(0, MAX_RESEND_ATTEMPTS - (otp_store.get(email_normalized).resend_count))
+    rec = otp_store.get(email_normalized)
+    resend_count = rec.resend_count if rec else 0
+    attempts_remaining = max(0, MAX_RESEND_ATTEMPTS - resend_count)
     return True, {
         "status": "ok",
         "message": "Verification code resent",

@@ -125,8 +125,8 @@ async def resend_code(email: str, *, sender: Optional[EmailSender] = None):
     return True, {
         "status": "ok",
         "message": "Verification code resent",
-        "cooldownSeconds": RESEND_COOLDOWN_S,
-        "attemptsRemaining": attempts_remaining
+        "cooldown_seconds": RESEND_COOLDOWN_S,
+        "attempts_remaining": attempts_remaining
     }, {}
 
 def generate_user_authentication_tokens(db: Session, email: str) -> Dict:
@@ -137,7 +137,7 @@ def generate_user_authentication_tokens(db: Session, email: str) -> Dict:
     
     tokens = generate_user_tokens(str(user.id))
     return {
-        "accessToken": tokens["access_token"],
-        "refreshToken": tokens["refresh_token"],
-        "expiresIn": ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # Convert to seconds for Android
+        "access_token": tokens["access_token"],
+        "refresh_token": tokens["refresh_token"],
+        "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # Convert to seconds for Android
     }

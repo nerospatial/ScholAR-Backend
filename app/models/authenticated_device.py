@@ -1,4 +1,5 @@
 from sqlalchemy import Column, Integer, ForeignKey, DateTime
+from sqlalchemy.orm import relationship
 from app.db.database import Base
 from datetime import datetime
 
@@ -10,3 +11,5 @@ class AuthenticatedDevice(Base):
     device_id = Column(Integer, ForeignKey("devices.id"), nullable=False)
     first_connected_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     last_connected_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    user = relationship("User", back_populates="authenticated_device")

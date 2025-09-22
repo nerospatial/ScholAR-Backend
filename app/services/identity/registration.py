@@ -70,11 +70,7 @@ def complete_registration_verification(email: str, verification_code: str, db: S
     
     activate_pending_user(email, db)
     
-    return 200, {
-        "accessToken": verification_result["accessToken"],
-        "refreshToken": verification_result["refreshToken"], 
-        "expiresIn": verification_result["expiresIn"]
-    }
+    return 200, verification_result
 
 def find_user_by_email(email: str, db: Session) -> User | None:
     """Find user by email including pending users"""

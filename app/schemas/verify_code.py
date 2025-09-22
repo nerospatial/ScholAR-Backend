@@ -5,6 +5,6 @@ class VerifyRequest(BaseModel):
 	code: str = Field(pattern=r"^\d{6}$")
 
 class VerifyResponse(BaseModel):
-	accessToken: str
-	refreshToken: str
-	expiresIn: int
+	access_token: str
+	refresh_token: str
+	expires_in: int

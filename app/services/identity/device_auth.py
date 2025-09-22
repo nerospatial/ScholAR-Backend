@@ -26,13 +26,13 @@ async def initiate_device_authentication(user_id: int, db: Session) -> Tuple[int
     otp_store.set(str(user_id), code_hash, salt)
 
     # Issue short-lived registration token bound to this code
-    registration_token = jwt_token_manager.create_access_token(
+    access_token = jwt_token_manager.create_access_token(
         {"sub": str(user_id), "purpose": "device_auth", "registration_code": code}
     )
 
     return 200, {
-        "registration_token": registration_token,
-        "access_token": registration_token,
+        "registration_token": code,
+        "access_token": access_token,
         "expires_in": DEVICE_REGISTRATION_TOKEN_TTL_S,
     }
 

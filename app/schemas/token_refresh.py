@@ -1,9 +1,9 @@
 from pydantic import BaseModel
 
 class TokenRefreshRequest(BaseModel):
-    refreshToken: str
+    refresh_token: str
 
 class TokenRefreshResponse(BaseModel):
-    accessToken: str
-    refreshToken: str
-    expiresIn: int  # seconds
+    access_token: str
+    refresh_token: str
+    expires_in: int  # seconds

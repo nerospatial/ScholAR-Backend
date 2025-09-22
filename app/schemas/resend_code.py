@@ -7,5 +7,5 @@ class ResendRequest(BaseModel):
 class ResendResponse(BaseModel):
 	status: str
 	message: str
-	cooldownSeconds: int
-	attemptsRemaining: Optional[int] = None
+	cooldown_seconds: int
+	attempts_remaining: Optional[int] = None

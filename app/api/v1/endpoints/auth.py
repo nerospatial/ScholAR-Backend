@@ -28,14 +28,12 @@ def verify_code_route(req: VerifyRequest, db: db_dependency):
     status_code, result = complete_registration_verification(str(req.email), req.code, db)
     if status_code == 200:
         return result
-    
     # If registration verification fails, try login verification
     if status_code in [401, 410, 423]:
         login_status_code, login_result = complete_login_verification(str(req.email), req.code, db)
         if login_status_code == 200:
             return login_result
         # Return the original registration error if login also fails
-    
     raise HTTPException(status_code=status_code, detail=result)
 
 
@@ -46,14 +44,12 @@ async def resend_code_route(req: ResendRequest):
         success, result, headers = await resend_verification_code(str(req.email))
         if success:
             return result
-        
         # Map service errors to HTTP status codes
         error_code = result.get("error", "server_error")
         if error_code == "rate_limited":
             status_code = status.HTTP_429_TOO_MANY_REQUESTS
         else:
             status_code = status.HTTP_400_BAD_REQUEST
-            
         raise HTTPException(
             status_code=status_code, 
             detail=result, 
@@ -94,11 +90,11 @@ async def reset_password_route(req: ResetPasswordRequest, db: db_dependency):
 @router.post("/refresh", response_model=TokenRefreshResponse)
 def refresh_token(req: TokenRefreshRequest):
     try:
-        new_access, new_refresh = create_new_token_pair_from_refresh(req.refreshToken)
+        new_access, new_refresh = create_new_token_pair_from_refresh(req.refresh_token)
         return TokenRefreshResponse(
-            accessToken=new_access,
-            refreshToken=new_refresh,
-            expiresIn=300,  
+            access_token=new_access,
+            refresh_token=new_refresh,
+            expires_in=300,  
         )
     except Exception as e:
         # TODO: hook revocation list & abuse protection here

@@ -1,28 +1,26 @@
 from pydantic import BaseModel, field_validator
 from typing import Optional
 
-class DeviceOtpRequest(BaseModel):
+
+class DeviceRegisterRequest(BaseModel):
     user_id: int
 
-class DeviceOtpResponse(BaseModel):
-    otp: str
-    accessToken: str
-    expiresIn: int
 
-class DeviceAuthRequest(BaseModel):
+class DeviceRegisterResponse(BaseModel):
+    registration_token: str
+    access_token: str
+    expires_in: int
+
+
+class DeviceVerifyRequest(BaseModel):
     user_id: int
-    otp: str
-    accessToken: str
-    device_id: Optional[str] = None
+    registration_token: str
+    access_token: str
+    hardware_id: Optional[str] = None
 
-    @field_validator("otp")
-    def validate_otp_format(cls, v):
-        if not (v.isdigit() and len(v) == 6):
-            raise ValueError("OTP must be a 6-digit numeric code")
-        return v
 
-class DeviceAuthResponse(BaseModel):
-    userId: int
-    accessToken: str
-    refreshToken: str
-    expiresIn: int
+class DeviceVerifyResponse(BaseModel):
+    user_id: int
+    access_token: str
+    refresh_token: str
+    expires_in: int

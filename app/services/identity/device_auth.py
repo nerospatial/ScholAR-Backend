@@ -16,7 +16,7 @@ DEVICE_OTP_TTL_S = 300  # 5 minutes
 
 async def initiate_device_authentication(user_id: int, db: Session) -> Tuple[int, Dict]:
     # Verify that the user exists
-    user = db.query(User).filter(User.id == user_id, User.is_deleted == False).first()
+    user = db.query(User).filter(User.id == user_id, User.is_deleted == False,User.is_verified==True).first()
     if not user:
         return 404, {"error": "user_not_found", "message": "User not found"}
 

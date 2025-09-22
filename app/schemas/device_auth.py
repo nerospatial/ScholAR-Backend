@@ -22,7 +22,7 @@ class DeviceAuthRequest(BaseModel):
         return v
 
 class DeviceAuthResponse(BaseModel):
-    userId: str
+    userId: int
     accessToken: str
     refreshToken: str
     expiresIn: int

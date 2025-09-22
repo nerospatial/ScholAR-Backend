@@ -1,4 +1,3 @@
-
 from fastapi import APIRouter, HTTPException, status
 from app.db.database import db_dependency
 from app.schemas.user import UserCreate, UserLogin
@@ -9,6 +8,8 @@ from app.services.identity.registration import process_registration_request, com
 from app.services.identity.login import process_login_request, complete_login_verification
 from app.services.identity.forgot_password import initiate_password_reset_request, complete_password_reset_verification
 from app.services.identity.email_verification import resend_code as resend_verification_code
+from app.services.tokens.token_utils import create_new_token_pair_from_refresh
+from app.schemas.token_refresh import TokenRefreshRequest, TokenRefreshResponse
 
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -89,3 +90,19 @@ async def reset_password_route(req: ResetPasswordRequest, db: db_dependency):
     if status_code == 200:
         return result
     raise HTTPException(status_code=status_code, detail=result)
+
+@router.post("/refresh", response_model=TokenRefreshResponse)
+def refresh_token(req: TokenRefreshRequest):
+    try:
+        new_access, new_refresh = create_new_token_pair_from_refresh(req.refreshToken)
+        return TokenRefreshResponse(
+            accessToken=new_access,
+            refreshToken=new_refresh,
+            expiresIn=300,  
+        )
+    except Exception as e:
+        # TODO: hook revocation list & abuse protection here
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail={"error": "invalid_refresh", "message": str(e)}
+        )

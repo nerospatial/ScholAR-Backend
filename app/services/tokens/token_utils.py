@@ -33,13 +33,8 @@ def verify_refresh_token(token: str) -> Dict[str, Any]:
     """Verify and decode refresh token payload"""
     return jwt_token_manager.decode_refresh_token(token)
 
-def create_new_token_pair_from_refresh(old_refresh_token: str) -> Tuple[str, str, Dict[str, Any]]:
-    """
-    Rotate refresh token and create new token pair.
-    Returns (new_access_token, new_refresh_token, old_token_payload).
-    Caller should revoke old_token_payload['jti'] to prevent reuse.
-    """
+def create_new_token_pair_from_refresh(old_refresh_token: str) -> Tuple[str, str]:
     old_payload = jwt_token_manager.decode_refresh_token(old_refresh_token)
     new_refresh_token = jwt_token_manager.create_refresh_token({"sub": old_payload["sub"]})
     new_access_token = jwt_token_manager.create_access_token({"sub": old_payload["sub"]})
-    return new_access_token, new_refresh_token, old_payload
+    return new_access_token, new_refresh_token

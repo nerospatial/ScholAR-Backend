@@ -22,9 +22,10 @@ def hash_otp_code_with_salt(code: str, salt: str) -> str:
 def is_otp_expired(created_at_s: int, ttl_seconds: int) -> bool:
     return (now_s() - created_at_s) >= ttl_seconds
 
-def generate_six_digit_otp_with_hash() -> Tuple[str, str, str]:
-    code = f"{secrets.randbelow(1_000_000):06d}"
+
+def generate_six_digit_otp_with_hash() -> Tuple[int, str, str]:
+    code = secrets.randbelow(900000) + 100000  # Always 6 digits, never leading zero
     salt = secrets.token_hex(8)
-    code_hash = hash_otp_code_with_salt(code, salt)
+    code_hash = hash_otp_code_with_salt(str(code), salt)
     return code, salt, code_hash
 

@@ -43,7 +43,7 @@ async def issue_code(email: str, *, sender: Optional[EmailSender] = None) -> Dic
         "maxResendAttempts": MAX_RESEND_ATTEMPTS,
     }
 
-def verify_code(email: str, code: str, db: Session) -> Tuple[bool, Dict]:
+def verify_code(email: str, code: int, db: Session) -> Tuple[bool, Dict]:
     try:
         email_normalized = normalize_email_address(email)
     except Exception:
@@ -65,7 +65,8 @@ def verify_code(email: str, code: str, db: Session) -> Tuple[bool, Dict]:
 
     try:
         expected = rec.code_hash
-        actual = hash_otp_code_with_salt(code, rec.salt)
+        code_str = str(code).zfill(6)
+        actual = hash_otp_code_with_salt(code_str, rec.salt)
     except Exception:
         return False, {"error": "bad_request", "message": "Code must be 6 digits"}
 
@@ -112,19 +113,21 @@ async def resend_code(email: str, *, sender: Optional[EmailSender] = None):
     code, salt, code_hash = generate_six_digit_otp_with_hash()
     otp_store.mark_resend_and_update_code_hash(email_normalized, code_hash, salt)
 
-    subject = "Your ScholAR verification code"
+    subject = "Your ScholAR verification code-after resend"
     body = (
         f"Your code is {code}. It expires in {CODE_TTL_S//60} minutes. If you didn't request this, ignore.\n\n"
         "Need help? Contact support@scholar-glasses.com."
     )
     await sender.send_verification_code(email_normalized, subject=subject, body=body)
 
-    attempts_remaining = max(0, MAX_RESEND_ATTEMPTS - (otp_store.get(email_normalized).resend_count))
+    rec = otp_store.get(email_normalized)
+    resend_count = rec.resend_count if rec else 0
+    attempts_remaining = max(0, MAX_RESEND_ATTEMPTS - resend_count)
     return True, {
         "status": "ok",
         "message": "Verification code resent",
-        "cooldownSeconds": RESEND_COOLDOWN_S,
-        "attemptsRemaining": attempts_remaining
+        "cooldown_seconds": RESEND_COOLDOWN_S,
+        "attempts_remaining": attempts_remaining
     }, {}
 
 def generate_user_authentication_tokens(db: Session, email: str) -> Dict:
@@ -135,7 +138,7 @@ def generate_user_authentication_tokens(db: Session, email: str) -> Dict:
     
     tokens = generate_user_tokens(str(user.id))
     return {
-        "accessToken": tokens["access_token"],
-        "refreshToken": tokens["refresh_token"],
-        "expiresIn": ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # Convert to seconds for Android
+        "access_token": tokens["access_token"],
+        "refresh_token": tokens["refresh_token"],
+        "expires_in": ACCESS_TOKEN_EXPIRE_MINUTES * 60,  # Convert to seconds for Android
     }

@@ -1,12 +1,13 @@
-from pydantic import BaseModel, EmailStr, field_validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from app.utils.validators import validate_password, validate_passwords_match
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
 
+
 class ResetPasswordRequest(BaseModel):
     email: EmailStr
-    code: str
+    code: int = Field(ge=100000, le=999999, description="6-digit OTP code as integer")
     new_password: str
     confirm_new_password: str
 

@@ -41,8 +41,8 @@ async def process_registration_request(email: str, password: str, db: Session) -
     verification_response = await issue_code(normalized_email)
     
     return 200, {
-        "status": "ok",
-        "message": "Verification code sent"
+        "status": verification_response["status"],
+        "message": verification_response["message"]
     }
 
 def complete_registration_verification(email: str, verification_code: str, db: Session) -> Tuple[int, Dict]:

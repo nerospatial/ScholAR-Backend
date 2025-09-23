@@ -39,7 +39,7 @@ async def initiate_device_authentication(user_id: UUID, db: Session) -> Tuple[in
 
 
 
-def complete_device_authentication(user_id: UUID, registration_token: str, access_token: str, device_id: UUID, db: Session) -> Tuple[int, Dict]:
+def complete_device_authentication(user_id: UUID, registration_token: int, access_token: str, device_id: UUID, db: Session) -> Tuple[int, Dict]:
     # Decode and validate the short-lived registration token
     try:
         payload = jwt_token_manager.decode_access_token(registration_token)
@@ -55,7 +55,11 @@ def complete_device_authentication(user_id: UUID, registration_token: str, acces
         return 401, {"error": "invalid_code", "message": "No registration code issued for this user"}
 
     expected = rec.code_hash
-    actual = hash_otp_code_with_salt(payload.get("registration_code", ""), rec.salt)
+    reg_code = payload.get("registration_code", None)
+    if reg_code is None:
+        return 401, {"error": "invalid_code", "message": "No registration code in token"}
+    reg_code_str = str(reg_code).zfill(6)
+    actual = hash_otp_code_with_salt(reg_code_str, rec.salt)
     if expected != actual:
         return 401, {"error": "invalid_code", "message": "Registration code did not match"}
 

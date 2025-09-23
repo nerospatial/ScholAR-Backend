@@ -43,7 +43,7 @@ async def issue_code(email: str, *, sender: Optional[EmailSender] = None) -> Dic
         "maxResendAttempts": MAX_RESEND_ATTEMPTS,
     }
 
-def verify_code(email: str, code: str, db: Session) -> Tuple[bool, Dict]:
+def verify_code(email: str, code: int, db: Session) -> Tuple[bool, Dict]:
     try:
         email_normalized = normalize_email_address(email)
     except Exception:
@@ -65,7 +65,8 @@ def verify_code(email: str, code: str, db: Session) -> Tuple[bool, Dict]:
 
     try:
         expected = rec.code_hash
-        actual = hash_otp_code_with_salt(code, rec.salt)
+        code_str = str(code).zfill(6)
+        actual = hash_otp_code_with_salt(code_str, rec.salt)
     except Exception:
         return False, {"error": "bad_request", "message": "Code must be 6 digits"}
 

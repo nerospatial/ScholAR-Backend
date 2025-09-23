@@ -1,3 +1,4 @@
+
 # ScholAR Backend API Documentation
 
 ## Authentication Endpoints (`/api/v1/auth`)
@@ -88,31 +89,49 @@
 
 ## Device Authentication Endpoints (`/api/v1/auth`) (on going...)
 
+
 ### 1. `POST /device/register`
 
 - **Request Body:** `DeviceRegisterRequest`
-  - `user_id`: int
+  - `user_id`: str (uuid)
 
 - **Response:** `DeviceRegisterResponse`
-  - `registration_token`: string
-  - `access_token`: string
+  - `registration_token`: int
+  - `access_token`: str
   - `expires_in`: int
 
 ---
 
 ### 2. `POST /device/verify`
 
+- **Headers:**
+  - `Authorization: Bearer <access_token>`
+
 - **Request Body:** `DeviceVerifyRequest`
-  - `user_id`: int
-  - `registration_token`: string
-  - `access_token`: string
-  - `hardware_id`: string
+  - `user_id`: str (uuid)
+  - `registration_token`: int
+  - `hardware_id`: str
+  - `device_name`: str
+  - `firmware_version`: str
 
 - **Response:** `DeviceVerifyResponse`
-  - `user_id`: int
-  - `access_token`: string
-  - `refresh_token`: string
+  - `user_id`: str (uuid)
+  - `access_token`: str
+  - `refresh_token`: str
   - `expires_in`: int
+
+---
+
+### 3. `GET /device/get-devices`
+
+- **Headers:**
+  - `Authorization: Bearer <access_token>`
+
+- **Request Body:** `UserDevicesRequest` (for OpenAPI/typed clients)
+  - `user_id`: str (uuid)
+
+- **Response:** `UserDevicesResponse`
+  - `devices`: list of `DeviceInfo`
 
 ---
 
@@ -172,7 +191,7 @@ code: int  # 6 digits
 
 ```python
 access_token: str
-refresh_token: int
+refresh_token: str
 expires_in: int
 ```
 
@@ -241,14 +260,17 @@ access_token: str
 expires_in: int
 ```
 
+
 ### DeviceVerifyRequest
 
 ```python
 user_id: str (uuid)
 registration_token: int
-access_token: str
-hardware_id: str 
+hardware_id: str
+device_name: str
+firmware_version: str
 ```
+
 
 ### DeviceVerifyResponse
 
@@ -275,4 +297,24 @@ email: str
 username: str (optional)
 is_verified: bool
 auth_type: str
+```
+### DeviceInfo
+
+```python
+device_id: UUID
+device_name: str
+firmware_version: str
+```
+
+### UserDevicesRequest
+
+```python
+user_id: UUID
+```
+
+### UserDevicesResponse
+
+```python
+devices: List[DeviceInfo]
+
 ```

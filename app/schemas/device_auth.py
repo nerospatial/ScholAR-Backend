@@ -1,6 +1,5 @@
-
 from pydantic import BaseModel, field_validator
-from typing import Optional
+from typing import List, Optional
 from uuid import UUID
 
 class DeviceRegisterRequest(BaseModel):
@@ -25,3 +24,14 @@ class DeviceVerifyResponse(BaseModel):
     access_token: str
     refresh_token: str
     expires_in: int
+
+class DeviceInfo(BaseModel):
+    device_id: UUID
+    device_name: str
+    firmware_version: str
+
+class UserDevicesResponse(BaseModel):
+    devices: List[DeviceInfo]
+
+class UserDevicesRequest(BaseModel):
+    user_id: UUID

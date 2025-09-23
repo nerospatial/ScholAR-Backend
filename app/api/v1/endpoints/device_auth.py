@@ -2,6 +2,10 @@ from fastapi import APIRouter, HTTPException, Header
 from app.db.database import db_dependency
 from app.services.identity import device_auth
 from app.schemas.device_auth import DeviceRegisterResponse, DeviceRegisterRequest, DeviceVerifyRequest,DeviceVerifyResponse
+from app.schemas.device_auth import UserDevicesRequest, UserDevicesResponse, DeviceInfo
+from app.models.device import Device
+from app.models.authenticated_device import AuthenticatedDevice
+from uuid import UUID
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -39,3 +43,33 @@ async def verify_device(
     raise HTTPException(status_code=status_code, detail=result)
 
 
+@router.get("/device/get-devices", response_model=UserDevicesResponse)
+async def get_user_devices(
+    UserDevicesRequest: UserDevicesRequest,
+    db: db_dependency = None,
+    authorization: str = Header(None)
+):
+    # Check for Authorization header and validate token
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail={"error": "missing_token", "message": "Authorization header missing or invalid"})
+    access_token = authorization.split(" ", 1)[1]
+    try:
+        payload = device_auth.jwt_token_manager.decode_access_token(access_token)
+    except Exception as e:
+        raise HTTPException(status_code=401, detail={"error": "invalid_token", "message": str(e)})
+
+    results = (
+        db.query(Device.id, Device.device_name, Device.firmware_version)
+        .join(AuthenticatedDevice, AuthenticatedDevice.device_id == Device.id)
+        .filter(AuthenticatedDevice.user_id == UserDevicesRequest.user_id)
+        .all()
+    )
+    devices = [
+        DeviceInfo(
+            device_id=device.id,
+            device_name=device.device_name,
+            firmware_version=device.firmware_version,
+        )
+        for device in results
+    ]
+    return UserDevicesResponse(devices=devices)

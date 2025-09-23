@@ -7,17 +7,18 @@ from app.db.database import SessionLocal
 from app.services.tokens.token_utils import verify_access_token
 from app.models.user import User
 from app.models.google_user import GoogleUser
+
 from pydantic import BaseModel
+from uuid import UUID
 
 router = APIRouter(tags=["user"])
 
 class UserProfile(BaseModel):
-    id: int
+    id: UUID
     email: str
     username: Optional[str] = None
     is_verified: bool
     auth_type: str  # "email" or "google"
-    
     class Config:
         from_attributes = True
 
@@ -34,21 +35,21 @@ def get_user_profile(authorization: Annotated[str, Header()]):
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Missing or invalid authorization header"
             )
-        
+
         token = authorization.split(" ")[1]
-        
+
         # Verify the access token using existing token utils
         payload = verify_access_token(token)
         user_id = payload.get("sub")
-        
+
         if not user_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token: missing user ID"
             )
-        
+
         # Try to find user in regular users table first
-        user = db.query(User).filter(User.id == int(user_id)).first()
+        user = db.query(User).filter(User.id == user_id).first()
         if user:
             return UserProfile(
                 id=user.id,
@@ -57,9 +58,9 @@ def get_user_profile(authorization: Annotated[str, Header()]):
                 is_verified=user.is_verified,
                 auth_type="email"
             )
-        
+
         # Try to find user in Google users table
-        google_user = db.query(GoogleUser).filter(GoogleUser.id == int(user_id)).first()
+        google_user = db.query(GoogleUser).filter(GoogleUser.id == user_id).first()
         if google_user:
             return UserProfile(
                 id=google_user.id,
@@ -68,13 +69,13 @@ def get_user_profile(authorization: Annotated[str, Header()]):
                 is_verified=True,  # Google users are always verified
                 auth_type="google"
             )
-        
+
         # User not found in either table
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found"
         )
-        
+
     except jwt.InvalidTokenError as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

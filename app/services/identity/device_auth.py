@@ -1,5 +1,6 @@
 from __future__ import annotations
 from typing import Dict, Tuple
+from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 import secrets
@@ -15,9 +16,9 @@ from app.infra.cache.otp_store import otp_store
 DEVICE_REGISTRATION_TOKEN_TTL_S = 300  # 5 minutes
 
 
-async def initiate_device_authentication(user_id: int, db: Session) -> Tuple[int, Dict]:
+async def initiate_device_authentication(user_id: UUID, db: Session) -> Tuple[int, Dict]:
     # Verify that the user exists
-    user = db.query(User).filter(User.id == user_id, User.is_deleted == False,User.is_verified==True).first()
+    user = db.query(User).filter(User.id == user_id, User.is_deleted == False, User.is_verified == True).first()
     if not user:
         return 404, {"error": "user_not_found", "message": "User not found"}
 
@@ -38,7 +39,7 @@ async def initiate_device_authentication(user_id: int, db: Session) -> Tuple[int
 
 
 
-def complete_device_authentication(user_id: int, registration_token: str, access_token: str, device_id: int, db: Session) -> Tuple[int, Dict]:
+def complete_device_authentication(user_id: UUID, registration_token: str, access_token: str, device_id: UUID, db: Session) -> Tuple[int, Dict]:
     # Decode and validate the short-lived registration token
     try:
         payload = jwt_token_manager.decode_access_token(registration_token)
@@ -90,7 +91,7 @@ def complete_device_authentication(user_id: int, registration_token: str, access
     # Issue full tokens for authenticated session
     tokens = generate_user_tokens(str(user_id))
     return 200, {
-        "user_id": user_id,
+        "user_id": str(user_id),
         "access_token": tokens["access_token"],
         "refresh_token": tokens["refresh_token"],
         "expires_in": 60 * 60,

@@ -39,26 +39,24 @@ async def initiate_device_authentication(user_id: UUID, db: Session) -> Tuple[in
 
 
 
-def complete_device_authentication(user_id: UUID, registration_token: int, access_token: str, device_id: UUID, db: Session) -> Tuple[int, Dict]:
-    # Decode and validate the short-lived registration token
+def complete_device_authentication(user_id: UUID, registration_token: int, access_token: str, hardware_id: UUID, db: Session) -> Tuple[int, Dict]:
+
+    # Decode and validate the short-lived access token (JWT)
     try:
-        payload = jwt_token_manager.decode_access_token(registration_token)
+        payload = jwt_token_manager.decode_access_token(access_token)
     except Exception as e:
         return 401, {"error": "invalid_token", "message": str(e)}
 
     if payload.get("sub") != str(user_id) or payload.get("purpose") != "device_auth":
         return 401, {"error": "invalid_token", "message": "Token not valid for device authentication"}
 
-    # Verify registration code from store
+    # Verify registration code from store using user-supplied registration_token (OTP code)
     rec = otp_store.get(str(user_id))
     if not rec:
         return 401, {"error": "invalid_code", "message": "No registration code issued for this user"}
 
     expected = rec.code_hash
-    reg_code = payload.get("registration_code", None)
-    if reg_code is None:
-        return 401, {"error": "invalid_code", "message": "No registration code in token"}
-    reg_code_str = str(reg_code).zfill(6)
+    reg_code_str = str(registration_token).zfill(6)
     actual = hash_otp_code_with_salt(reg_code_str, rec.salt)
     if expected != actual:
         return 401, {"error": "invalid_code", "message": "Registration code did not match"}
@@ -66,7 +64,8 @@ def complete_device_authentication(user_id: UUID, registration_token: int, acces
     otp_store.invalidate(str(user_id))
 
     # Prevent the same device from being registered to multiple users
-    existing_for_device = db.query(AuthenticatedDevice).filter(AuthenticatedDevice.device_id == device_id).first()
+
+    existing_for_device = db.query(AuthenticatedDevice).filter(AuthenticatedDevice.device_id == hardware_id).first()
     if existing_for_device and existing_for_device.user_id != user_id:
         return 409, {
             "error": "device_conflict",
@@ -77,7 +76,7 @@ def complete_device_authentication(user_id: UUID, registration_token: int, acces
     # Allow multiple devices per user (1-n)
     existing_mapping = db.query(AuthenticatedDevice).filter(
         AuthenticatedDevice.user_id == user_id,
-        AuthenticatedDevice.device_id == device_id
+        AuthenticatedDevice.device_id == hardware_id
     ).first()
 
     try:
@@ -85,7 +84,7 @@ def complete_device_authentication(user_id: UUID, registration_token: int, acces
             existing_mapping.last_connected_at = func.now()
             db.add(existing_mapping)
         else:
-            device = AuthenticatedDevice(user_id=user_id, device_id=device_id)
+            device = AuthenticatedDevice(user_id=user_id, device_id=hardware_id)
             db.add(device)
         db.commit()
     except IntegrityError:

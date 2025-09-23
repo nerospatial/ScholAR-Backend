@@ -17,7 +17,7 @@
 
 - **Request Body:** `VerifyRequest`
   - `email`: string (email)
-  - `code`: string (6 digits)
+  - `code`: int (6 digits)
 
 - **Response:** `VerifyResponse`
   - `access_token`: string
@@ -64,7 +64,7 @@
 
 - **Request Body:** `ResetPasswordRequest`
   - `email`: string (email)
-  - `code`: string
+  - `code`: int (6 digits)
   - `new_password`: string
   - `confirm_new_password`: string
 
@@ -165,14 +165,14 @@ password: str
 
 ```python
 email: EmailStr
-code: str (6 digits)
+code: int  # 6 digits
 ```
 
 ### VerifyResponse
 
 ```python
 access_token: str
-refresh_token: str
+refresh_token: int
 expires_in: int
 ```
 
@@ -188,7 +188,7 @@ email: EmailStr
 status: str
 message: str
 cooldown_seconds: int
-attempts_remaining: int (optional)
+attempts_remaining: int 
 ```
 
 ### ForgotPasswordRequest
@@ -201,7 +201,7 @@ email: EmailStr
 
 ```python
 email: EmailStr
-code: str
+code: int  # 6 digits
 new_password: str
 confirm_new_password: str
 ```
@@ -230,13 +230,13 @@ expires_in: int
 ### DeviceRegisterRequest
 
 ```python
-user_id: int
+user_id: str (uuid)
 ```
 
 ### DeviceRegisterResponse
 
 ```python
-registration_token: str
+registration_token: int
 access_token: str
 expires_in: int
 ```
@@ -244,16 +244,16 @@ expires_in: int
 ### DeviceVerifyRequest
 
 ```python
-user_id: int
-registration_token: str
+user_id: str (uuid)
+registration_token: int
 access_token: str
-hardware_id: str (optional)
+hardware_id: str 
 ```
 
 ### DeviceVerifyResponse
 
 ```python
-user_id: int
+user_id: str (uuid)
 access_token: str
 refresh_token: str
 expires_in: int
@@ -270,7 +270,7 @@ username: str
 ### UserProfile
 
 ```python
-id: int
+id: str (uuid)
 email: str
 username: str (optional)
 is_verified: bool

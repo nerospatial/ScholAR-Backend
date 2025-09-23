@@ -3,8 +3,6 @@ from typing import Dict, Tuple
 from uuid import UUID
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-import secrets
-
 from app.models.user import User
 from app.models.authenticated_device import AuthenticatedDevice
 from sqlalchemy.exc import IntegrityError
@@ -39,7 +37,20 @@ async def initiate_device_authentication(user_id: UUID, db: Session) -> Tuple[in
 
 
 
-def complete_device_authentication(user_id: UUID, registration_token: int, access_token: str, hardware_id: UUID, db: Session) -> Tuple[int, Dict]:
+def complete_device_authentication(
+    user_id: UUID,
+    registration_token: int,
+    access_token: str,
+    hardware_id: str,
+    device_name: str,
+    firmware_version: str,
+    db: Session
+) -> Tuple[int, Dict]:
+    from app.models.hardware import Hardware
+    from app.models.device import Device
+    from app.models.authenticated_device import AuthenticatedDevice
+    from sqlalchemy.exc import SQLAlchemyError, IntegrityError
+    import uuid as uuidlib
 
     # Decode and validate the short-lived access token (JWT)
     try:
@@ -63,33 +74,39 @@ def complete_device_authentication(user_id: UUID, registration_token: int, acces
 
     otp_store.invalidate(str(user_id))
 
-    # Prevent the same device from being registered to multiple users
-
-    existing_for_device = db.query(AuthenticatedDevice).filter(AuthenticatedDevice.device_id == hardware_id).first()
-    if existing_for_device and existing_for_device.user_id != user_id:
-        return 409, {
-            "error": "device_conflict",
-            "message": "device_id already registered to a different user",
-            "existingUserId": str(existing_for_device.user_id),
-        }
-
-    # Allow multiple devices per user (1-n)
-    existing_mapping = db.query(AuthenticatedDevice).filter(
-        AuthenticatedDevice.user_id == user_id,
-        AuthenticatedDevice.device_id == hardware_id
-    ).first()
+    # Check if hardware_id exists in Hardware table
+    hardware = db.query(Hardware).filter(Hardware.hardware_id == hardware_id).first()
+    if not hardware:
+        return 404, {"error": "hardware_not_found", "message": "Hardware ID not registered"}
 
     try:
-        if existing_mapping:
-            existing_mapping.last_connected_at = func.now()
-            db.add(existing_mapping)
-        else:
-            device = AuthenticatedDevice(user_id=user_id, device_id=hardware_id)
-            db.add(device)
+        # Start transaction
+        device_uuid = uuidlib.uuid4()
+        # Create Device entry
+        device = Device(id=device_uuid, device_name=device_name, firmware_version=firmware_version)
+        db.add(device)
+        db.flush()  # To get device.id
+
+        # Prevent the same device from being registered to multiple users
+        existing_for_device = db.query(AuthenticatedDevice).filter(AuthenticatedDevice.device_id == device_uuid).first()
+        if existing_for_device and existing_for_device.user_id != user_id:
+            db.rollback()
+            return 409, {
+                "error": "device_conflict",
+                "message": "device_id already registered to a different user",
+                "existingUserId": str(existing_for_device.user_id),
+            }
+
+        # Allow multiple devices per user (1-n)
+        auth_device = AuthenticatedDevice(user_id=user_id, device_id=device_uuid)
+        db.add(auth_device)
         db.commit()
     except IntegrityError:
         db.rollback()
         return 409, {"error": "unique_constraint_violation", "message": "Concurrent update conflict, please retry"}
+    except SQLAlchemyError as e:
+        db.rollback()
+        return 500, {"error": "db_error", "message": str(e)}
 
     # Issue full tokens for authenticated session
     tokens = generate_user_tokens(str(user_id))

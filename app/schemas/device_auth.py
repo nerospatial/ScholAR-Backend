@@ -16,8 +16,9 @@ class DeviceRegisterResponse(BaseModel):
 class DeviceVerifyRequest(BaseModel):
     user_id: UUID
     registration_token: int  # 6-digit code as int
-    access_token: str
-    hardware_id: Optional[str] = None
+    hardware_id: str
+    device_name: str
+    firmware_version: str
 
 class DeviceVerifyResponse(BaseModel):
     user_id: UUID

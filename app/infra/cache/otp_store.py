@@ -35,9 +35,11 @@ class InMemoryOtpStore:
                 resend_count=0,
                 last_resend_at_s=now_s(),
             )
+            print("Set object for " + email.lower() + self._d[email.lower()].code_hash + " to " + code_hash)
 
     def get(self, email: str) -> Optional[OtpRecord]:
         with self._lock:
+            print(email.lower())
             return self._d.get(email.lower())
 
     def invalidate(self, email: str) -> None:

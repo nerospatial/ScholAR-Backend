@@ -40,7 +40,7 @@ async def process_login_request(email: str, password: str, db: Session) -> Tuple
         "message": "Verification code sent"
     }
 
-def complete_login_verification(email: str, verification_code: str, db: Session) -> Tuple[int, Dict]:
+def complete_login_verification(email: str, verification_code: int, db: Session) -> Tuple[int, Dict]:
     """Complete login after email verification - return tokens"""
     verification_successful, verification_result = verify_code(email, verification_code, db)
     

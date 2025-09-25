@@ -45,10 +45,9 @@ async def process_registration_request(email: str, password: str, db: Session) -
         "message": verification_response["message"]
     }
 
-def complete_registration_verification(email: str, verification_code: str, db: Session) -> Tuple[int, Dict]:
+def complete_registration_verification(email: str, verification_code: int, db: Session) -> Tuple[int, Dict]:
     """Complete registration after email verification - activate user and return tokens"""
     verification_successful, verification_result = verify_code(email, verification_code, db)
-    
     if not verification_successful:
         error_code = verification_result.get("error")
         

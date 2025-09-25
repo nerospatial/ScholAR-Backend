@@ -30,7 +30,7 @@ async def initiate_password_reset_request(email: str, db: Session) -> Tuple[int,
         "message": "If an account exists, a reset email has been sent."
     }
 
-def complete_password_reset_verification(email: str, verification_code: str, new_password: str, db: Session) -> Tuple[int, Dict]:
+def complete_password_reset_verification(email: str, verification_code: int, new_password: str, db: Session) -> Tuple[int, Dict]:
     """Complete password reset after email verification"""
     try:
         normalized_email = normalize_email_address(email)
@@ -48,7 +48,6 @@ def complete_password_reset_verification(email: str, verification_code: str, new
         }
     
     verification_successful, verification_result = verify_code(normalized_email, verification_code, db)
-    
     if not verification_successful:
         error_code = verification_result.get("error")
         

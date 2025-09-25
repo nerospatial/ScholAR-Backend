@@ -1,8 +1,14 @@
-from fastapi import APIRouter, HTTPException, Header
+from fastapi import APIRouter, HTTPException, Header, Path
 from app.db.database import db_dependency
 from app.services.identity import device_auth
-from app.schemas.device_auth import DeviceRegisterResponse, DeviceRegisterRequest, DeviceVerifyRequest,DeviceVerifyResponse
-from app.schemas.device_auth import UserDevicesRequest, UserDevicesResponse, DeviceInfo
+from app.schemas.device_auth import (
+    DeviceRegisterResponse,
+    DeviceRegisterRequest,
+    DeviceVerifyRequest,
+    DeviceVerifyResponse,
+    UserDevicesResponse,
+    DeviceInfo,
+)
 from app.models.device import Device
 from app.models.authenticated_device import AuthenticatedDevice
 from uuid import UUID
@@ -43,11 +49,11 @@ async def verify_device(
     raise HTTPException(status_code=status_code, detail=result)
 
 
-@router.get("/device/get-devices", response_model=UserDevicesResponse)
+@router.get("/device/get-devices/{user_id}", response_model=UserDevicesResponse)
 async def get_user_devices(
-    UserDevicesRequest: UserDevicesRequest,
+    user_id: UUID = Path(..., description="User ID to fetch devices for"),
     db: db_dependency = None,
-    authorization: str = Header(None)
+    authorization: str = Header(None),
 ):
     # Check for Authorization header and validate token
     if not authorization or not authorization.startswith("Bearer "):
@@ -61,7 +67,7 @@ async def get_user_devices(
     results = (
         db.query(Device.id, Device.device_name, Device.firmware_version)
         .join(AuthenticatedDevice, AuthenticatedDevice.device_id == Device.id)
-        .filter(AuthenticatedDevice.user_id == UserDevicesRequest.user_id)
+        .filter(AuthenticatedDevice.user_id == user_id)
         .all()
     )
     devices = [

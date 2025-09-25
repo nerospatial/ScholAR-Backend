@@ -48,7 +48,6 @@ def verify_code(email: str, code: int, db: Session) -> Tuple[bool, Dict]:
         email_normalized = normalize_email_address(email)
     except Exception:
         return False, {"error": "bad_request", "message": "Malformed email"}
-
     rec = otp_store.get(email_normalized)
     if not rec:
         return False, {"error": "invalid_code", "message": "The verification code is invalid or expired"}

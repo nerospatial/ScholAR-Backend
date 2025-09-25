@@ -32,6 +32,3 @@ class DeviceInfo(BaseModel):
 
 class UserDevicesResponse(BaseModel):
     devices: List[DeviceInfo]
-
-class UserDevicesRequest(BaseModel):
-    user_id: UUID

@@ -15,14 +15,14 @@ from uuid import UUID
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
-	
+
 
 @router.post("/device/register", response_model=DeviceRegisterResponse)
 async def register_device(req: DeviceRegisterRequest, db: db_dependency):
-	status_code, result = await device_auth.initiate_device_authentication(req.user_id, db)
-	if status_code == 200:
-		return result
-	raise HTTPException(status_code=status_code, detail=result)
+    status_code, result = await device_auth.initiate_device_authentication(req.user_id, db)
+    if status_code == 200:
+        return result
+    raise HTTPException(status_code=status_code, detail=result)
 
 @router.post("/device/verify", response_model=DeviceVerifyResponse)
 async def verify_device(

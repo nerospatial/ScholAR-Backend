@@ -13,18 +13,18 @@ from app.models.device import Device
 from app.models.authenticated_device import AuthenticatedDevice
 from uuid import UUID
 
-router = APIRouter(prefix="/auth", tags=["auth"])
+router = APIRouter(prefix="/glasses/auth", tags=["auth"])
 
 
 
-@router.post("/device/register", response_model=DeviceRegisterResponse)
+@router.post("/register", response_model=DeviceRegisterResponse)
 async def register_device(req: DeviceRegisterRequest, db: db_dependency):
     status_code, result = await device_auth.initiate_device_authentication(req.user_id, db)
     if status_code == 200:
         return result
     raise HTTPException(status_code=status_code, detail=result)
 
-@router.post("/device/verify", response_model=DeviceVerifyResponse)
+@router.post("/verify", response_model=DeviceVerifyResponse)
 async def verify_device(
     req: DeviceVerifyRequest,
     db: db_dependency,
@@ -49,7 +49,7 @@ async def verify_device(
     raise HTTPException(status_code=status_code, detail=result)
 
 
-@router.get("/device/get-devices/{user_id}", response_model=UserDevicesResponse)
+@router.get("/get-devices/{user_id}", response_model=UserDevicesResponse)
 async def get_user_devices(
     user_id: UUID = Path(..., description="User ID to fetch devices for"),
     db: db_dependency = None,

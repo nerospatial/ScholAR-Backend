@@ -130,27 +130,31 @@ class WebSocketSession:
         if not self.llm_provider or not self.active:
             await self._send_error("Session not active")
             return
-            
+
         text = message.get("data", "")
         if text:
+            # Ensure streaming tasks are running
+            await self._start_response_streaming()
             await self.llm_provider.send_text(text)
-            
+
     async def _handle_audio_message(self, message: Dict[str, Any]):
         """Handle audio input from client"""
         if not self.llm_provider or not self.active:
             await self._send_error("Session not active")
             return
-            
+
         audio_data = message.get("data", "")
         sample_rate = message.get("sample_rate", 16000)
-        
+
         if audio_data:
-            # Decode base64 audio data
             try:
                 audio_bytes = base64.b64decode(audio_data)
+                # Ensure streaming tasks are running
+                await self._start_response_streaming()
                 await self.llm_provider.send_audio(audio_bytes, sample_rate)
             except Exception as e:
                 await self._send_error(f"Invalid audio data: {str(e)}")
+
                 
     async def _handle_video_message(self, message: Dict[str, Any]):
         """Handle video/image input from client"""
@@ -196,14 +200,41 @@ class WebSocketSession:
         try:
             if not self.llm_provider:
                 return
+            
+            logger.info(f"[{self.session_id}] _stream_audio_responses started")
 
             await self._send_message(get_query_responder_speaking_message())
+            logger.info(f"[{self.session_id}] Query responder speaking...")
+
+            first_chunk = True
+            chunk_count = 0
+            total_bytes = 0
 
             async for audio_chunk in self.llm_provider.get_audio_response():
                 if not self.active:
                     break
 
+                if not audio_chunk:
+                    logger.warning(f"[{self.session_id}] Received empty audio chunk from provider")
+                    continue
+
+                chunk_count += 1
+                total_bytes += len(audio_chunk)
+
                 audio_b64 = base64.b64encode(audio_chunk).decode()
+
+                if first_chunk:
+                    logger.info(
+                        f"[{self.session_id}] First audio chunk → {len(audio_chunk)} bytes "
+                        f"({len(audio_b64)} base64 chars)"
+                    )
+                    first_chunk = False
+                else:
+                    logger.debug(
+                        f"[{self.session_id}] Audio chunk #{chunk_count}: "
+                        f"{len(audio_chunk)} bytes raw"
+                    )
+
                 await self._send_message({
                     "type": "audio_response",
                     "data": audio_b64,
@@ -212,10 +243,14 @@ class WebSocketSession:
                     "channels": 1
                 })
 
+            logger.info(
+                f"[{self.session_id}] Audio stream ended. "
+                f"Sent {chunk_count} chunks ({total_bytes} bytes total)"
+            )
             await self._send_message(get_query_responder_done_message())
 
         except Exception as e:
-            logger.error(f"Error streaming audio responses: {e}")
+            logger.error(f"[{self.session_id}] Error streaming audio responses: {e}")
             await self._send_message(get_query_responder_done_message())
 
     async def _send_message(self, message: Any):

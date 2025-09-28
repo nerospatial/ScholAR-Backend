@@ -13,8 +13,7 @@
         padding: 20px;
       }
       .container {
-        background: white; border-radius: 16px;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        background: white; border-radius: 16px; box-shadow: 0 20px 40px rgba(0,0,0,0.1);
         padding: 40px; max-width: 800px; width: 100%;
       }
       .header { text-align: center; margin-bottom: 40px; }
@@ -23,37 +22,30 @@
         background: linear-gradient(135deg, #667eea, #764ba2);
         -webkit-background-clip: text; -webkit-text-fill-color: transparent;
       }
-      .video-container {
-        position: relative; background: #000; border-radius: 12px;
-        overflow: hidden; margin-bottom: 20px;
-      }
+      .video-container { position: relative; background: #000; border-radius: 12px;
+        overflow: hidden; margin-bottom: 20px; }
       #videoElement { width: 100%; height: 300px; object-fit: cover; }
       .video-overlay {
         position: absolute; top: 10px; left: 10px;
         background: rgba(0,0,0,0.7); color: white;
         padding: 8px 12px; border-radius: 6px; font-size: 0.9rem;
       }
-      .controls {
-        display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin-bottom: 30px;
-      }
+      .controls { display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin-bottom: 30px; }
       .btn {
         background: linear-gradient(135deg, #667eea, #764ba2);
         color: white; border: none; padding: 12px 24px; border-radius: 8px;
-        font-size: 1rem; font-weight: 600; cursor: pointer;
-        transition: all 0.3s ease; min-width: 120px;
+        font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.3s ease;
+        min-width: 120px;
       }
       .btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(102,126,234,0.4); }
       .btn:disabled { background: #ccc; cursor: not-allowed; }
       .btn.danger { background: linear-gradient(135deg, #ff6b6b, #ee5a52); }
       .btn.danger:hover:not(:disabled) { box-shadow: 0 6px 20px rgba(255,107,107,0.4); }
-      .status-section {
-        background: #f8f9fa; border-radius: 12px; padding: 20px; margin-bottom: 20px;
-      }
+      .status-section { background: #f8f9fa; border-radius: 12px; padding: 20px; margin-bottom: 20px; }
       .status-row { display: flex; justify-content: space-between; margin-bottom: 10px; }
       .status-label { font-weight: 600; color: #333; }
       .status-indicator {
-        padding: 4px 12px; border-radius: 20px;
-        font-size: 0.9rem; font-weight: 600;
+        padding: 4px 12px; border-radius: 20px; font-size: 0.9rem; font-weight: 600;
       }
       .status-connected { background: #d4edda; color: #155724; }
       .status-disconnected { background: #f8d7da; color: #721c24; }
@@ -61,23 +53,13 @@
       .status-inactive { background: #e2e3e5; color: #383d41; }
       .audio-visualizer {
         height: 60px; background: #f0f0f0; border-radius: 8px;
-        display: flex; align-items: center; justify-content: center;
-        margin: 20px 0;
+        display: flex; align-items: center; justify-content: center; margin: 20px 0;
       }
       .audio-bars { display: flex; gap: 3px; height: 40px; }
-      .audio-bar {
-        width: 4px; background: linear-gradient(135deg, #667eea, #764ba2);
-        border-radius: 2px; transition: height 0.1s ease;
-      }
-      .log-section {
-        background: #f8f9fa; border-radius: 12px; padding: 20px;
-        max-height: 200px; overflow-y: auto;
-      }
-      .log-entry {
-        font-family: "Courier New", monospace; font-size: 0.9rem;
-        margin-bottom: 5px; padding: 8px; background: white;
-        border-radius: 4px; border-left: 4px solid #667eea;
-      }
+      .audio-bar { width: 4px; background: linear-gradient(135deg,#667eea,#764ba2); border-radius: 2px; transition: height 0.1s ease; }
+      .log-section { background: #f8f9fa; border-radius: 12px; padding: 20px; max-height: 200px; overflow-y: auto; }
+      .log-entry { font-family: "Courier New", monospace; font-size: 0.9rem; margin-bottom: 5px;
+        padding: 8px; background: white; border-radius: 4px; border-left: 4px solid #667eea; }
       .log-error { border-left-color: #ff6b6b; background: #fff5f5; }
       .log-success { border-left-color: #51cf66; background: #f3fff3; }
       .log-info { border-left-color: #339af0; background: #f0f8ff; }
@@ -111,20 +93,20 @@
 
       <div class="audio-visualizer"><div class="audio-bars" id="audioBars"></div></div>
 
-      <div class="log-section"><div class="log-header">📋 Activity Log</div><div id="logContainer"><div class="log-entry log-info">Ready to connect...</div></div></div>
+      <div class="log-section"><div id="logContainer"><div class="log-entry log-info">Ready to connect...</div></div></div>
     </div>
 
     <script>
       const WEBSOCKET_URL = "ws://localhost:8080/ws/queries";
       const SEND_SAMPLE_RATE = 16000;
       const CHUNK_SIZE = 1024;
-      const VIDEO_WIDTH = 1024, VIDEO_HEIGHT = 1024;
 
       class ScholARWebClient {
         constructor() {
           this.websocket = null;
           this.mediaStream = null;
           this.audioContext = null;
+          this.playHead = 0;   // playback cursor
           this.videoElement = document.getElementById("videoElement");
           this.isSessionActive = false;
           this.videoFrameInterval = null;
@@ -138,7 +120,6 @@
           this.startSessionBtn = document.getElementById("startSessionBtn");
           this.stopSessionBtn = document.getElementById("stopSessionBtn");
           this.disconnectBtn = document.getElementById("disconnectBtn");
-
           this.wsStatus = document.getElementById("wsStatus");
           this.sessionStatus = document.getElementById("sessionStatus");
           this.audioStatusEl = document.getElementById("audioStatus");
@@ -160,7 +141,8 @@
           const barsContainer = document.getElementById("audioBars");
           for (let i = 0; i < 20; i++) {
             const bar = document.createElement("div");
-            bar.className = "audio-bar"; bar.style.height = "8px";
+            bar.className = "audio-bar";
+            bar.style.height = "8px";
             barsContainer.appendChild(bar);
           }
         }
@@ -171,180 +153,108 @@
           entry.textContent = `${new Date().toLocaleTimeString()}: ${message}`;
           this.logContainer.appendChild(entry);
           this.logContainer.scrollTop = this.logContainer.scrollHeight;
-          while (this.logContainer.children.length > 50)
-            this.logContainer.removeChild(this.logContainer.firstChild);
         }
 
         updateStatus(el, text, active) {
           el.textContent = text;
           el.className = `status-indicator ${active ? "status-connected" : "status-disconnected"}`;
-          if (text.includes("Active") || text.includes("Recording") || text.includes("Streaming"))
+          if (text.includes("Active") || text.includes("Recording") || text.includes("Streaming")) {
             el.className = "status-indicator status-active";
+          }
         }
 
         async connect() {
           this.websocket = new WebSocket(WEBSOCKET_URL);
           this.websocket.onopen = () => {
-            this.log("WebSocket connected","success");
-            this.updateStatus(this.wsStatus,"Connected",true);
+            this.log("WebSocket connected", "success");
+            this.updateStatus(this.wsStatus, "Connected", true);
             this.connectBtn.disabled = true;
             this.startSessionBtn.disabled = false;
             this.disconnectBtn.disabled = false;
           };
           this.websocket.onmessage = (event) => this.handleMessage(event.data);
-          this.websocket.onclose = () => {
-            this.log("WebSocket disconnected","error");
-            this.updateStatus(this.wsStatus,"Disconnected",false);
-            this.resetUI();
-          };
-          this.websocket.onerror = (error) => this.log(`WebSocket error: ${error}`, "error");
+          this.websocket.onclose = () => this.resetUI();
         }
 
         async startSession() {
-          try {
-            this.mediaStream = await navigator.mediaDevices.getUserMedia({
-              video: { width: 640, height: 480 },
-              audio: { sampleRate: SEND_SAMPLE_RATE, channelCount: 1, echoCancellation: true, noiseSuppression: true }
-            });
-            this.log("Media permissions granted","success");
-            this.videoElement.srcObject = this.mediaStream;
-
-            if (!this.audioContext) this.audioContext = new AudioContext({ sampleRate: SEND_SAMPLE_RATE });
-            this.setupAudioRecording();
-            this.setupVideoStreaming();
-
-            this.sendMessage({ type: "START_QUERY_SESSION" });
-            this.isSessionActive = true;
-            this.updateStatus(this.sessionStatus,"Active",true);
-            this.updateStatus(this.audioStatusEl,"Recording",true);
-            this.updateStatus(this.videoStatusEl,"Streaming",true);
-            document.getElementById("videoStatus").textContent = "Camera On";
-          } catch (err) { this.log(`Failed to start session: ${err.message}`, "error"); }
+          this.mediaStream = await navigator.mediaDevices.getUserMedia({
+            video: { width: 640, height: 480 },
+            audio: { sampleRate: SEND_SAMPLE_RATE, channelCount: 1 }
+          });
+          this.videoElement.srcObject = this.mediaStream;
+          if (!this.audioContext) this.audioContext = new AudioContext({ sampleRate: SEND_SAMPLE_RATE });
+          this.setupAudioRecording();
+          this.sendMessage({ type: "START_QUERY_SESSION" });
+          this.isSessionActive = true;
+          this.updateStatus(this.sessionStatus, "Active", true);
         }
 
         setupAudioRecording() {
           const audioTrack = this.mediaStream.getAudioTracks()[0];
           const src = this.audioContext.createMediaStreamSource(new MediaStream([audioTrack]));
-          const processor = this.audioContext.createScriptProcessor(CHUNK_SIZE,1,1);
+          const processor = this.audioContext.createScriptProcessor(CHUNK_SIZE, 1, 1);
           processor.onaudioprocess = (event) => {
             if (!this.isSessionActive) return;
             const inputData = event.inputBuffer.getChannelData(0);
             const int16 = new Int16Array(inputData.length);
-            for (let i = 0; i < inputData.length; i++) int16[i] = inputData[i]*32767;
+            for (let i = 0; i < inputData.length; i++) int16[i] = inputData[i] * 32767;
             this.sendAudioChunk(int16.buffer);
-            this.updateAudioVisualizer(inputData);
           };
           src.connect(processor); processor.connect(this.audioContext.destination);
         }
 
-        setupVideoStreaming() {
-          this.videoFrameInterval = setInterval(() => {
-            if (!this.isSessionActive) return;
-            this.captureVideoFrame();
-          }, 5000);
+        sendMessage(msg) {
+          if (this.websocket?.readyState === WebSocket.OPEN) this.websocket.send(JSON.stringify(msg));
         }
-
-        captureVideoFrame() {
-          const canvas = document.createElement("canvas"), ctx = canvas.getContext("2d");
-          canvas.width = this.videoElement.videoWidth || 640;
-          canvas.height = this.videoElement.videoHeight || 480;
-          ctx.drawImage(this.videoElement,0,0,canvas.width,canvas.height);
-          canvas.toBlob((blob) => {
-            const reader = new FileReader();
-            reader.onload = () => {
-              const base64 = reader.result.split(",")[1];
-              this.sendVideoFrame(base64);
-            };
-            reader.readAsDataURL(blob);
-          },"image/jpeg",0.8);
-        }
-
-        updateAudioVisualizer(audioData) {
-          const bars = document.querySelectorAll(".audio-bar");
-          const step = Math.floor(audioData.length / bars.length);
-          for (let i=0;i<bars.length;i++) {
-            let sum=0; for (let j=0;j<step;j++) sum+=Math.abs(audioData[i*step+j]);
-            bars[i].style.height = `${Math.max(2,(sum/step)*40)}px`;
-          }
-        }
-
-        sendMessage(msg) { if (this.websocket?.readyState===WebSocket.OPEN) this.websocket.send(JSON.stringify(msg)); }
         sendAudioChunk(buf) {
           const base64 = this.arrayBufferToBase64(buf);
-          this.sendMessage({ type:"audio", data:base64, sample_rate:SEND_SAMPLE_RATE });
+          this.sendMessage({ type: "audio", data: base64, sample_rate: SEND_SAMPLE_RATE });
         }
-        sendVideoFrame(img) { this.sendMessage({ type:"video", data:img, mime_type:"image/jpeg" }); }
 
         handleMessage(data) {
           try {
             const msg = JSON.parse(data);
-            if (msg.type==="text_response") this.log(`AI: ${msg.data}`,"success");
-            else if (msg.type==="audio_response") {
-              this.log(`Audio chunk received (${msg.data.length} base64 chars)`, "info");
-              const sr = msg.sample_rate || 24000;
-              this.playAudioResponse(msg.data,sr);
-            } else if (msg.type==="ERROR") this.log(`Error: ${msg.message}`,"error");
-            else if (msg.type) this.log(`Status: ${msg.type}`,"info");
-          } catch { this.log(`Server: ${data}`,"info"); }
-        }
-        async playAudioResponse(base64Audio, sampleRate, encoding) {
-          try {
-            if (!this.audioContext) this.audioContext = new AudioContext({ sampleRate });
-            if (this.audioContext.state === "suspended") await this.audioContext.resume();
-
-            const pcm = this.base64ToArrayBuffer(base64Audio);
-            if (encoding === "pcm_s16le") {
-              const pcmView = new Int16Array(pcm);
-              const audioBuffer = this.audioContext.createBuffer(1, pcmView.length, sampleRate);
-              const channel = audioBuffer.getChannelData(0);
-              for (let i = 0; i < pcmView.length; i++) {
-                channel[i] = pcmView[i] / 32768;
-              }
-              const src = this.audioContext.createBufferSource();
-              src.buffer = audioBuffer;
-              src.connect(this.audioContext.destination);
-              src.start();
-              this.log("Playing AI audio response", "success");
-            } else {
-              this.log(`Unsupported audio encoding: ${encoding}`, "error");
+            if (msg.type === "audio_response") {
+              this.playAudioResponse(msg.data, msg.sample_rate, msg.encoding);
             }
-          } catch (err) {
-            this.log(`Failed to play audio: ${err.message}`, "error");
+          } catch { this.log(`Server: ${data}`, "info"); }
+        }
+
+        async playAudioResponse(base64Audio, sampleRate, encoding) {
+          if (!this.audioContext) this.audioContext = new AudioContext({ sampleRate });
+          if (this.audioContext.state === "suspended") await this.audioContext.resume();
+
+          const pcm = this.base64ToArrayBuffer(base64Audio);
+          const pcmView = new Int16Array(pcm);
+          const audioBuffer = this.audioContext.createBuffer(1, pcmView.length, sampleRate);
+          const channel = audioBuffer.getChannelData(0);
+          for (let i = 0; i < pcmView.length; i++) channel[i] = pcmView[i] / 32768;
+
+          const src = this.audioContext.createBufferSource();
+          src.buffer = audioBuffer;
+          src.connect(this.audioContext.destination);
+
+          // --- Fixed scheduling ---
+          if (this.playHead < this.audioContext.currentTime) {
+            this.playHead = this.audioContext.currentTime;
           }
+          src.start(this.playHead);
+          this.playHead += audioBuffer.duration;
         }
 
-
-        stopSession() {
-          this.isSessionActive=false;
-          this.sendMessage({ type:"STOP_QUERY_SESSION" });
-          if (this.videoFrameInterval) clearInterval(this.videoFrameInterval);
-          if (this.mediaStream) this.mediaStream.getTracks().forEach(t=>t.stop());
-          this.videoElement.srcObject=null;
-          this.updateStatus(this.sessionStatus,"Inactive",false);
-          this.updateStatus(this.audioStatusEl,"Inactive",false);
-          this.updateStatus(this.videoStatusEl,"Inactive",false);
-          document.getElementById("videoStatus").textContent="Camera Off";
+        disconnect() {
+          if (this.websocket) this.websocket.close();
+          this.resetUI();
         }
-
-        disconnect() { if (this.isSessionActive) this.stopSession(); if (this.websocket) this.websocket.close(); this.resetUI(); this.log("Disconnected","info"); }
-        resetUI() {
-          this.connectBtn.disabled=false; this.startSessionBtn.disabled=true;
-          this.stopSessionBtn.disabled=true; this.disconnectBtn.disabled=true;
-          this.updateStatus(this.wsStatus,"Disconnected",false);
-          this.updateStatus(this.sessionStatus,"Inactive",false);
-          this.updateStatus(this.audioStatusEl,"Inactive",false);
-          this.updateStatus(this.videoStatusEl,"Inactive",false);
-        }
-
+        resetUI() { this.connectBtn.disabled = false; }
         arrayBufferToBase64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
         base64ToArrayBuffer(b64) {
-          const bin=atob(b64), buf=new ArrayBuffer(bin.length), view=new Uint8Array(buf);
-          for (let i=0;i<bin.length;i++) view[i]=bin.charCodeAt(i);
+          const bin = atob(b64), buf = new ArrayBuffer(bin.length), view = new Uint8Array(buf);
+          for (let i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
           return buf;
         }
       }
-
-      document.addEventListener("DOMContentLoaded",()=>{ new ScholARWebClient(); });
+      document.addEventListener("DOMContentLoaded", () => new ScholARWebClient());
     </script>
   </body>
 </html>

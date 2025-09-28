@@ -266,27 +266,17 @@ class GeminiProvider(BaseLLMProviderInterface):
                         if not self._connected:
                             break
 
-                        # --- Plain audio bytes (rare in Gemini) ---
+                        # Handle audio (PCM16 chunks @ 24kHz)
                         if response.data:
+                            logger.info(f"Received audio chunk: {len(response.data)} bytes")
                             await self._audio_response_queue.put(response.data)
-                            logger.debug(f"Received legacy audio data: {len(response.data)} bytes")
 
-                        # --- Text parts ---
-                        if response.text:
-                            await self._text_response_queue.put(response.text)
-                            logger.debug(f"Received text: {response.text}")
-
-                        # --- Inline parts (Gemini Live sends audio this way) ---
-                        if hasattr(response, "parts"):
-                            for part in response.parts:
-                                if getattr(part, "inline_data", None):
-                                    inline = part.inline_data
-                                    if getattr(inline, "mime_type", "").startswith("audio"):
-                                        audio_bytes = inline.data
-                                        await self._audio_response_queue.put(audio_bytes)
-                                        logger.debug(
-                                            f"Received inline audio data: {len(audio_bytes)} bytes, mime={inline.mime_type}"
-                                        )
+                        # Handle text (only if Gemini actually sends text parts)
+                        if hasattr(response, "output") and response.output:
+                            for part in response.output:
+                                if getattr(part, "text", None):
+                                    logger.info(f"Received text chunk: {part.text[:100]}...")
+                                    await self._text_response_queue.put(part.text)
 
                 except asyncio.CancelledError:
                     logger.info("Receive loop cancelled")

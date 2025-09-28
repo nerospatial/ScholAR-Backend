@@ -106,7 +106,7 @@
           this.websocket = null;
           this.mediaStream = null;
           this.audioContext = null;
-          this.playHead = 0;   // playback cursor
+          this.playHead = 0;
           this.videoElement = document.getElementById("videoElement");
           this.isSessionActive = false;
           this.videoFrameInterval = null;
@@ -182,11 +182,17 @@
             audio: { sampleRate: SEND_SAMPLE_RATE, channelCount: 1 }
           });
           this.videoElement.srcObject = this.mediaStream;
+          document.getElementById("videoStatus").textContent = "Camera On";
+
           if (!this.audioContext) this.audioContext = new AudioContext({ sampleRate: SEND_SAMPLE_RATE });
           this.setupAudioRecording();
+          this.setupVideoStreaming();
+
           this.sendMessage({ type: "START_QUERY_SESSION" });
           this.isSessionActive = true;
           this.updateStatus(this.sessionStatus, "Active", true);
+          this.updateStatus(this.audioStatusEl, "Recording", true);
+          this.updateStatus(this.videoStatusEl, "Streaming", true);
         }
 
         setupAudioRecording() {
@@ -199,8 +205,43 @@
             const int16 = new Int16Array(inputData.length);
             for (let i = 0; i < inputData.length; i++) int16[i] = inputData[i] * 32767;
             this.sendAudioChunk(int16.buffer);
+            this.updateAudioVisualizer(inputData);
           };
           src.connect(processor); processor.connect(this.audioContext.destination);
+        }
+
+        setupVideoStreaming() {
+          this.videoFrameInterval = setInterval(() => {
+            if (!this.isSessionActive) return;
+            this.captureVideoFrame();
+          }, 2000); // send frame every 2s
+        }
+
+        captureVideoFrame() {
+          const canvas = document.createElement("canvas");
+          const ctx = canvas.getContext("2d");
+          canvas.width = this.videoElement.videoWidth || 640;
+          canvas.height = this.videoElement.videoHeight || 480;
+          ctx.drawImage(this.videoElement, 0, 0, canvas.width, canvas.height);
+
+          canvas.toBlob((blob) => {
+            const reader = new FileReader();
+            reader.onloadend = () => {
+              const base64 = reader.result.split(",")[1];
+              this.sendVideoFrame(base64);
+            };
+            reader.readAsDataURL(blob);
+          }, "image/jpeg", 0.8);
+        }
+
+        updateAudioVisualizer(audioData) {
+          const bars = document.querySelectorAll(".audio-bar");
+          const step = Math.floor(audioData.length / bars.length);
+          for (let i = 0; i < bars.length; i++) {
+            let sum = 0;
+            for (let j = 0; j < step; j++) sum += Math.abs(audioData[i * step + j]);
+            bars[i].style.height = `${Math.max(2, (sum / step) * 40)}px`;
+          }
         }
 
         sendMessage(msg) {
@@ -210,12 +251,17 @@
           const base64 = this.arrayBufferToBase64(buf);
           this.sendMessage({ type: "audio", data: base64, sample_rate: SEND_SAMPLE_RATE });
         }
+        sendVideoFrame(base64) {
+          this.sendMessage({ type: "video", data: base64, mime_type: "image/jpeg" });
+        }
 
         handleMessage(data) {
           try {
             const msg = JSON.parse(data);
             if (msg.type === "audio_response") {
               this.playAudioResponse(msg.data, msg.sample_rate, msg.encoding);
+            } else if (msg.type === "text_response") {
+              this.log(`AI: ${msg.data}`, "success");
             }
           } catch { this.log(`Server: ${data}`, "info"); }
         }
@@ -234,7 +280,6 @@
           src.buffer = audioBuffer;
           src.connect(this.audioContext.destination);
 
-          // --- Fixed scheduling ---
           if (this.playHead < this.audioContext.currentTime) {
             this.playHead = this.audioContext.currentTime;
           }
@@ -242,11 +287,34 @@
           this.playHead += audioBuffer.duration;
         }
 
+        stopSession() {
+          this.isSessionActive = false;
+          this.sendMessage({ type: "STOP_QUERY_SESSION" });
+          if (this.videoFrameInterval) clearInterval(this.videoFrameInterval);
+          if (this.mediaStream) this.mediaStream.getTracks().forEach((t) => t.stop());
+          this.videoElement.srcObject = null;
+          document.getElementById("videoStatus").textContent = "Camera Off";
+          this.updateStatus(this.sessionStatus, "Inactive", false);
+          this.updateStatus(this.audioStatusEl, "Inactive", false);
+          this.updateStatus(this.videoStatusEl, "Inactive", false);
+        }
+
         disconnect() {
+          if (this.isSessionActive) this.stopSession();
           if (this.websocket) this.websocket.close();
           this.resetUI();
         }
-        resetUI() { this.connectBtn.disabled = false; }
+        resetUI() {
+          this.connectBtn.disabled = false;
+          this.startSessionBtn.disabled = true;
+          this.stopSessionBtn.disabled = true;
+          this.disconnectBtn.disabled = true;
+          this.updateStatus(this.wsStatus, "Disconnected", false);
+          this.updateStatus(this.sessionStatus, "Inactive", false);
+          this.updateStatus(this.audioStatusEl, "Inactive", false);
+          this.updateStatus(this.videoStatusEl, "Inactive", false);
+        }
+
         arrayBufferToBase64(buf) { return btoa(String.fromCharCode(...new Uint8Array(buf))); }
         base64ToArrayBuffer(b64) {
           const bin = atob(b64), buf = new ArrayBuffer(bin.length), view = new Uint8Array(buf);
@@ -254,6 +322,7 @@
           return buf;
         }
       }
+
       document.addEventListener("DOMContentLoaded", () => new ScholARWebClient());
     </script>
   </body>

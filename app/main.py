@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from app.db.database import Base, engine
 from app.websocket.routes import register_ws_routes
+from app.websocket.nerodivine_routes import register_nerodivine_ws_routes
 from app.api.v1.endpoints.google_auth import router as google_auth_router
 from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.me import router as me_router
@@ -40,6 +41,9 @@ Base.metadata.create_all(bind=engine)
 
 # mount the websocket endpoint(s) from app/websocket/
 register_ws_routes(app)
+
+# mount the nerodivine websocket endpoint
+register_nerodivine_ws_routes(app)
 
 app.include_router(google_auth_router, prefix="/api/v1")
 app.include_router(auth_router, prefix="/api/v1")

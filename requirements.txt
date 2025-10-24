@@ -17,3 +17,5 @@ google-genai>=1.33.0
 python-multipart>=0.0.6
 starlette>=0.36.0
 PyJWT>=2.8.0
+httpx>=0.24.0
+opuslib>=3.0.1

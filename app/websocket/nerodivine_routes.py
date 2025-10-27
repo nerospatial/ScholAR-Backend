@@ -13,6 +13,14 @@ from starlette.websockets import WebSocketState
 from websockets.exceptions import ConnectionClosedOK
 from app.core.log import logger
 
+# Try to import elevenlabs client
+try:
+    from elevenlabs.client import AsyncElevenLabs
+    ELEVENLABS_AVAILABLE = True
+except ImportError:
+    ELEVENLABS_AVAILABLE = False
+    logger.warning("elevenlabs package not available. Install with: pip install elevenlabs")
+
 # Try to import opuslib for Opus encoding
 try:
     import opuslib
@@ -53,7 +61,7 @@ class NerodivineSession:
         # Initialize Opus encoder if available
         if OPUS_AVAILABLE:
             self.opus_encoder = opuslib.Encoder(
-                fs=22050,  # Sample rate
+                fs=24000,  # Sample rate
                 channels=1,  # Mono
                 application=opuslib.APPLICATION_AUDIO  # For general audio
             )
@@ -118,72 +126,53 @@ class NerodivineSession:
             await self._send_error(f"Failed to generate story audio: {str(e)}")
             
     async def _stream_audio_from_elevenlabs(self, text: str):
-        """Stream audio from Eleven Labs API, convert PCM to Opus, and stream binary"""
+        """Stream audio from Eleven Labs API using SDK, convert PCM to Opus, and stream binary"""
+        if not ELEVENLABS_AVAILABLE:
+            raise Exception("ElevenLabs SDK not available")
+
         # Get environment variables
         ELEVEN_LABS_API_KEY = os.getenv("ELEVEN_LABS_API_KEY")
         VOICE_ID = os.getenv("ELEVEN_LABS_VOICE_ID", "21m00Tcm4TlvDq8ikWAM")  # Default voice ID
         
         if not ELEVEN_LABS_API_KEY:
             raise Exception("ELEVEN_LABS_API_KEY environment variable not set")
-        
-        url = f"https://api.elevenlabs.io/v1/text-to-speech/{VOICE_ID}/stream"
-        
-        headers = {
-            "Accept": "audio/wav",  # Request PCM format
-            "Content-Type": "application/json",
-            "xi-api-key": ELEVEN_LABS_API_KEY
-        }
-        
-        data = {
-            "text": text,
-            "model_id": "eleven_monolingual_v1",
-            "voice_settings": {
-                "stability": 0.5,
-                "similarity_boost": 0.5
-            },
-            "output_format": "pcm_22050"  # PCM format, 22.05kHz
-        }
-        
+
         try:
-            async with httpx.AsyncClient() as client:
-                async with client.stream('POST', url, headers=headers, json=data) as response:
-                    if response.status_code != 200:
-                        raise Exception(f"Eleven Labs API error: {response.status_code}")
-                        
-                    # Send audio start message as JSON
-                    await self._send_json_message({
-                        "type": "audio_start",
-                        "message": f"Starting story for {self.name}",
-                        "encoding": "opus" if OPUS_AVAILABLE else "pcm",
-                        "sample_rate": 22050,
-                        "channels": 1
-                    })
-                    
-                    # Skip WAV header (first 44 bytes) to get raw PCM data
-                    header_skipped = False
-                    pcm_buffer = b""
-                    
-                    async for chunk in response.aiter_bytes(1024):
-                        if chunk:
-                            if not header_skipped:
-                                # Skip WAV header
-                                if len(pcm_buffer + chunk) >= 44:
-                                    combined = pcm_buffer + chunk
-                                    raw_pcm = combined[44:]  # Skip 44-byte WAV header
-                                    header_skipped = True
-                                    if raw_pcm:
-                                        await self._process_and_send_audio(raw_pcm)
-                                else:
-                                    pcm_buffer += chunk
-                            else:
-                                # Process raw PCM data
-                                await self._process_and_send_audio(chunk)
-                    
-                    # Send audio end message as JSON
-                    await self._send_json_message({
-                        "type": "end",
-                        "message": "Story completed"
-                    })
+            # Initialize ElevenLabs client
+            client = AsyncElevenLabs(api_key=ELEVEN_LABS_API_KEY)
+
+            # Send audio start message as JSON
+            await self._send_json_message({
+                "type": "audio_start",
+                "message": f"Starting story for {self.name}",
+                "encoding": "opus" if OPUS_AVAILABLE else "pcm",
+                "sample_rate": 24000,
+                "channels": 1
+            })
+
+            # Stream audio from ElevenLabs using SDK
+            audio_stream = client.text_to_speech.convert(
+                voice_id=VOICE_ID,
+                text=text,
+                model_id="eleven_monolingual_v1",
+                output_format="pcm_24000",
+                voice_settings={
+                    "stability": 0.5,
+                    "similarity_boost": 0.5
+                }
+            )
+
+            # Process the streaming audio data
+            async for chunk in audio_stream:
+                if chunk:
+                    # Process and send audio data (chunk is already bytes)
+                    await self._process_and_send_audio(chunk)
+
+            # Send audio end message as JSON
+            await self._send_json_message({
+                "type": "end",
+                "message": "Story completed"
+            })
                     
         except Exception as e:
             logger.error(f"Error streaming from Eleven Labs: {e}")
@@ -193,8 +182,8 @@ class NerodivineSession:
         """Process PCM data: encode to Opus if available, otherwise send raw PCM"""
         if OPUS_AVAILABLE and self.opus_encoder:
             try:
-                # Encode PCM to Opus (frame size: 960 samples for 22.05kHz)
-                frame_size = 960 * 2  # 960 samples * 2 bytes per sample (16-bit)
+                # Encode PCM to Opus (frame size: 480 samples for 24kHz = 20ms frames)
+                frame_size = 480 * 2  # 480 samples * 2 bytes per sample (16-bit)
                 
                 # Process in chunks
                 for i in range(0, len(pcm_data), frame_size):
@@ -207,16 +196,26 @@ class NerodivineSession:
                     # Encode to Opus
                     opus_data = self.opus_encoder.encode(frame, frame_size // 2)
                     
-                    # Send binary Opus data directly
-                    await self.websocket.send_bytes(opus_data)
+                    # Send binary Opus data directly (check connection state)
+                    if self.websocket.client_state == WebSocketState.CONNECTED:
+                        await self.websocket.send_bytes(opus_data)
+                    else:
+                        logger.warning("WebSocket disconnected during Opus streaming")
+                        return
                     
             except Exception as e:
-                logger.error(f"Error encoding to Opus: {e}")
-                # Fallback to raw PCM
-                await self.websocket.send_bytes(pcm_data)
+                logger.error(f"Error encoding to Opus: {e} (type: {type(e).__name__})")
+                # Fallback to raw PCM - but this will cause client disconnect since we advertised Opus
+                if self.websocket.client_state == WebSocketState.CONNECTED:
+                    await self.websocket.send_bytes(pcm_data)
+                else:
+                    logger.warning("WebSocket disconnected during Opus encoding fallback")
         else:
-            # Send raw PCM data if Opus not available
-            await self.websocket.send_bytes(pcm_data)
+            # Send raw PCM data if Opus not available (check connection state)
+            if self.websocket.client_state == WebSocketState.CONNECTED:
+                await self.websocket.send_bytes(pcm_data)
+            else:
+                logger.warning("WebSocket disconnected during PCM streaming")
             
     async def _send_message(self, message: Any):
         """Send message to WebSocket client"""

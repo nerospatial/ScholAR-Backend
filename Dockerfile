@@ -9,6 +9,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential gcc libpq-dev curl && \
     rm -rf /var/lib/apt/lists/*
 
+RUN apt-get update && apt-get install -y --no-install-recommends libopus0 libopus-dev && rm -rf /var/lib/apt/lists/*
+
+
 # Install poetry or pip depending on your setup
 COPY pyproject.toml poetry.lock* requirements.txt* ./
 
@@ -22,6 +25,8 @@ FROM python:3.11-slim
 
 # Workdir
 WORKDIR /app
+
+RUN apt-get update && apt-get install -y --no-install-recommends libopus0 && rm -rf /var/lib/apt/lists/*
 
 # Copy installed site-packages from builder
 COPY --from=builder /usr/local/lib/python3.11 /usr/local/lib/python3.11

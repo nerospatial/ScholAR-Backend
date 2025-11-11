@@ -6,7 +6,7 @@ psycopg2-binary>=2.9.5
 authlib>=1.2.0
 itsdangerous>=2.0.0
 passlib>=1.7.4
-bcrypt>=4.0.1
+bcrypt
 python-jose>=3.3.0
 pydantic>=2.0.0
 pydantic[email]>=2.0.0
@@ -19,3 +19,4 @@ starlette>=0.36.0
 PyJWT>=2.8.0
 httpx>=0.24.0
 opuslib>=3.0.1
+elevenlabs

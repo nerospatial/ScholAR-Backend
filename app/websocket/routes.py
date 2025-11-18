@@ -2,6 +2,7 @@
 # Main WebSocket routes registry
 from fastapi import FastAPI
 from app.websocket.glasses.routes import register_glasses_ws_routes
+from app.websocket.toys.routes import register_toys_ws_routes
 
 
 def register_ws_routes(app: FastAPI) -> None:
@@ -12,6 +13,5 @@ def register_ws_routes(app: FastAPI) -> None:
     # Register glasses WebSocket endpoints
     register_glasses_ws_routes(app)
 
-    # Future: register toys WebSocket endpoints
-    # from app.websocket.toys.routes import register_toys_ws_routes
-    # register_toys_ws_routes(app)
+    # Register toys WebSocket endpoints
+    register_toys_ws_routes(app)

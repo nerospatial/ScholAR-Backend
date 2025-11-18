@@ -1,4 +1,4 @@
-from typing import Dict, Type
+from typing import Dict, Type, Optional
 from enum import Enum
 from app.llm.interfaces.base_llm_provider_interface import BaseLLMProviderInterface
 from app.llm.providers.gemini.gemini_provider import GeminiProvider
@@ -29,13 +29,15 @@ class LLMProviderFactory:
     @classmethod
     def create_provider(
         self, 
-        provider_type: LLMProviderType
+        provider_type: LLMProviderType,
+        system_instruction: Optional[str] = None
     ) -> BaseLLMProviderInterface:
         """
         Create an LLM provider instance.
         
         Args:
             provider_type: The type of provider to create
+            system_instruction: Optional system instruction/prompt for the provider
             
         Returns:
             An instance of the requested provider
@@ -51,6 +53,11 @@ class LLMProviderFactory:
             )
             
         provider_class = self._providers[provider_type]
+        
+        # Pass parameters to provider if it's Gemini (supports custom config)
+        if provider_type == LLMProviderType.GEMINI:
+            return provider_class(system_instruction=system_instruction)
+        
         return provider_class()
     
     @classmethod
@@ -85,14 +92,21 @@ class LLMProviderFactory:
 
 
 # Convenience function for easy import
-def get_llm_provider(provider_type: LLMProviderType = LLMProviderType.GEMINI) -> BaseLLMProviderInterface:
+def get_llm_provider(
+    provider_type: LLMProviderType = LLMProviderType.GEMINI,
+    system_instruction: Optional[str] = None
+) -> BaseLLMProviderInterface:
     """
     Get an LLM provider instance.
     
     Args:
         provider_type: The type of provider (defaults to Gemini)
+        system_instruction: Optional system instruction/prompt for the provider
         
     Returns:
         An instance of the requested provider
     """
-    return LLMProviderFactory.create_provider(provider_type)
+    return LLMProviderFactory.create_provider(
+        provider_type,
+        system_instruction=system_instruction
+    )

@@ -16,7 +16,7 @@ class GeminiProvider(BaseLLMProviderInterface):
     Based on the minimal Gemini Live API client example.
     """
     
-    def __init__(self):
+    def __init__(self, system_instruction: Optional[str] = None):
         self.client = None
         self.session = None
         self.audio_in_queue = None
@@ -27,6 +27,7 @@ class GeminiProvider(BaseLLMProviderInterface):
         self._task_group = None
         self._background_tasks = []
         self.ctx = None
+        self.system_instruction = system_instruction
 
     async def connect(self) -> None:
         """Establish connection to Gemini Live API"""
@@ -36,6 +37,10 @@ class GeminiProvider(BaseLLMProviderInterface):
 
             # Create config based on settings
             config = {"response_modalities": gemini_settings.response_modalities}
+            
+            # Add system instruction if provided
+            if self.system_instruction:
+                config["system_instruction"] = self.system_instruction
 
             # Initialize queues
             self.audio_in_queue = asyncio.Queue()

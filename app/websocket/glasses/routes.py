@@ -14,7 +14,7 @@ def register_glasses_ws_routes(app: FastAPI) -> None:
     # Store active glasses sessions
     active_sessions: Dict[str, GlassesWebSocketSession] = {}
 
-    @app.websocket("/ws/queries")
+    @app.websocket("/ws/glasses/queries")
     async def queries_websocket_endpoint(ws: WebSocket):
         """
         Main WebSocket endpoint for glasses devices.

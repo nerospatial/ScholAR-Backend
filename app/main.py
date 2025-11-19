@@ -8,8 +8,8 @@ from app.api.v1.endpoints.google_auth import router as google_auth_router
 from app.api.v1.endpoints.auth import router as auth_router
 from app.api.v1.endpoints.me import router as me_router
 from app.api.v1.endpoints.device_auth import router as device_auth_router
+from app.api.v1.endpoints.toys.stories import router as stories_router
 from dotenv import load_dotenv
-from app.models import hardware
 
 load_dotenv()
 
@@ -47,3 +47,4 @@ app.include_router(auth_router, prefix="/api/v1")
 app.include_router(me_router, prefix="/api/v1")
 
 app.include_router(device_auth_router, prefix="/api/v1")
+app.include_router(stories_router, prefix="/api/v1/toys")

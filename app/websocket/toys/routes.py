@@ -53,3 +53,42 @@ def register_toys_ws_routes(app: FastAPI) -> None:
                 await active_sessions[session_id].stop_llm_session()
                 del active_sessions[session_id]
                 logger.info(f"[Toys] Session cleaned up: {session_id}")
+
+    @app.websocket("/ws/toys/stories")
+    async def stories_websocket_endpoint(ws: WebSocket):
+        await ws.accept()
+        session_id = str(id(ws))
+        
+        # Create toys session for story playback
+        session = ToysWebSocketSession(ws, session_id)
+        active_sessions[session_id] = session
+        
+        # Send ready message
+        await session._send_message(get_ready_message())
+        logger.info(f"[Toys] Story WebSocket connection established: {session_id}")
+        
+        try:
+            while True:
+                # Wait for messages from toy device
+                try:
+                    message = await ws.receive_json()
+                    await session.handle_message(message)
+                except ValueError:
+                    # Try to receive as text
+                    text_message = await ws.receive_text()
+                    logger.warning(f"[Toys] Story WebSocket received text message: {text_message[:100]}")
+                    await session._send_error("Story endpoint supports JSON messages only")
+                    
+        except WebSocketDisconnect:
+            logger.info(f"[Toys] Story WebSocket disconnected: {session_id}")
+        except ConnectionClosedOK:
+            logger.info(f"[Toys] Story WebSocket connection closed normally: {session_id}")
+        except Exception as e:
+            logger.error(f"[Toys] Story WebSocket error: {e}")
+        finally:
+            # Cleanup session
+            if session_id in active_sessions:
+                await active_sessions[session_id].stop_llm_session()
+                del active_sessions[session_id]
+                logger.info(f"[Toys] Story session cleaned up: {session_id}")
+        

@@ -29,3 +29,24 @@ def get_user_interrupted_message():
 query_session_ended_message = "SESSION_ENDED"
 def get_session_ended_message():
     return query_session_ended_message
+
+# Story playback messages
+start_story_session_message = "START_STORY_SESSION"
+def get_start_story_session_message():
+    return start_story_session_message
+
+stop_story_session_message = "STOP_STORY_SESSION"
+def get_stop_story_session_message():
+    return stop_story_session_message
+
+story_responder_speaking_message = "STORY_RESPONDER_SPEAKING"
+def get_story_responder_speaking_message():
+    return story_responder_speaking_message
+
+story_responder_done_message = "STORY_RESPONDER_DONE"
+def get_story_responder_done_message():
+    return story_responder_done_message
+
+play_story_message = "PLAY_STORY"
+def get_play_story_message():
+    return play_story_message

@@ -163,6 +163,7 @@ class ToysWebSocketSession(BaseWebSocketSession):
             logger.info(f"[Toys] User interrupted session {self.session_id}")
             # Could implement interrupt handling in provider if needed
 
+    
     async def _stream_audio_responses(self):
         """
         Stream audio responses from Little Krishna to toy device.
@@ -181,21 +182,20 @@ class ToysWebSocketSession(BaseWebSocketSession):
             chunk_count = 0
             total_bytes = 0
             
-            # OPTIMIZED BUFFERING CONFIGURATION
-            # MTU Safety: ~1400 bytes fits in standard TCP packet (1500 MTU - headers)
-            # Latency: Flush if data sits for > 100ms
-            MTU_SIZE = 1400 
-            MAX_BUFFER_AGE = 0.1 # 100ms
+            # --- OPTIMIZED BUFFERING CONFIGURATION ---
+            # Increased MTU to 4KB to reduce packet overhead
+            # Increased Buffer Age to 200ms to allow larger chunks to form
+            MTU_SIZE = 4096  # 4KB (was 1400)
+            MAX_BUFFER_AGE = 0.2 # 200ms (was 100ms)
+            # -----------------------------------------
             
             audio_buffer = bytearray()
             last_send_time = time.time()
-
             async for audio_chunk in self.llm_provider.get_audio_response():
                 if not self.active:
                     break
                 if not audio_chunk:
                     continue
-
                 # Append new data to buffer
                 audio_buffer.extend(audio_chunk)
                 
@@ -222,19 +222,18 @@ class ToysWebSocketSession(BaseWebSocketSession):
                     audio_buffer.clear()
                     last_send_time = time.time()
                     logger.debug(f"[Toys] Time-based flush triggered for {self.session_id}")
-
             # Flush remaining buffer at end of stream
             if len(audio_buffer) > 0:
                 await self._send_audio_chunk_binary(audio_buffer, first_chunk)
                 chunk_count += 1
                 total_bytes += len(audio_buffer)
-
             logger.info(f"[Toys] Audio stream ended. Sent {total_bytes} bytes total in {chunk_count} chunks (Binary)")
             await self._send_message(get_query_responder_done_message())
             
         except Exception as e:
             logger.error(f"[Toys] Error streaming audio responses: {e}")
             await self._send_message(get_query_responder_done_message())
+
 
     async def _send_audio_chunk_binary(self, chunk: bytes, is_first: bool):
         """Helper to send raw binary audio chunk"""

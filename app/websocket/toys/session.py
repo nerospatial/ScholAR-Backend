@@ -130,13 +130,13 @@ class ToysWebSocketSession(BaseWebSocketSession):
         if self.llm_provider and self.active:
             logger.info(f"[Toys] User interrupted session {self.session_id}")
             # Could implement interrupt handling in provider if needed
-            
+
     async def _stream_audio_responses(self):
         """Stream audio responses from Little Krishna to toy device"""
         try:
             if not self.llm_provider:
                 return
-            
+
             logger.info(f"[Toys] Audio response streaming started for {self.session_id}")
 
             await self._send_message(get_query_responder_speaking_message())
@@ -146,45 +146,41 @@ class ToysWebSocketSession(BaseWebSocketSession):
             chunk_count = 0
             total_bytes = 0
 
+            # SPLIT CHUNKS to avoid 1009 Message Too Big error on ESP32
+            # ESP32 WebSockets library usually has a limit around 15KB
+            MAX_CHUNK_SIZE = 8192  # 8KB PCM -> ~11KB Base64 (Safe)
+
             async for audio_chunk in self.llm_provider.get_audio_response():
                 if not self.active:
                     break
 
                 if not audio_chunk:
-                    logger.warning(f"[Toys] Received empty audio chunk from provider")
                     continue
 
-                chunk_count += 1
-                total_bytes += len(audio_chunk)
+                # Loop to split large chunks
+                for i in range(0, len(audio_chunk), MAX_CHUNK_SIZE):
+                    sub_chunk = audio_chunk[i:i + MAX_CHUNK_SIZE]
 
-                audio_b64 = base64.b64encode(audio_chunk).decode()
+                    chunk_count += 1
+                    total_bytes += len(sub_chunk)
 
-                if first_chunk:
-                    logger.info(
-                        f"[Toys] First audio chunk from Krishna → {len(audio_chunk)} bytes "
-                        f"({len(audio_b64)} base64 chars)"
-                    )
-                    first_chunk = False
-                else:
-                    logger.debug(
-                        f"[Toys] Audio chunk #{chunk_count}: {len(audio_chunk)} bytes"
-                    )
+                    audio_b64 = base64.b64encode(sub_chunk).decode()
 
-                await self._send_message({
-                    "type": "audio_response",
-                    "data": audio_b64,
-                    "sample_rate": gemini_settings.receive_sample_rate,
-                    "encoding": "pcm_s16le",
-                    "channels": gemini_settings.audio_channels
-                })
+                    if first_chunk:
+                        logger.info(f"[Toys] First audio chunk sent")
+                        first_chunk = False
 
-            logger.info(
-                f"[Toys] Audio stream ended. "
-                f"Sent {chunk_count} chunks ({total_bytes} bytes total)"
-            )
+                    await self._send_message({
+                        "type": "audio_response",
+                        "data": audio_b64,
+                        "sample_rate": gemini_settings.receive_sample_rate,
+                        "encoding": "pcm_s16le",
+                        "channels": gemini_settings.audio_channels
+                    })
+
+            logger.info(f"[Toys] Audio stream ended. Sent {total_bytes} bytes total")
             await self._send_message(get_query_responder_done_message())
 
         except Exception as e:
             logger.error(f"[Toys] Error streaming audio responses: {e}")
-            logger.error(f"[Toys] Exception details: {traceback.format_exc()}")
             await self._send_message(get_query_responder_done_message())

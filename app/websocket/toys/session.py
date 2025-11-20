@@ -185,7 +185,7 @@ class ToysWebSocketSession(BaseWebSocketSession):
             # --- OPTIMIZED BUFFERING CONFIGURATION ---
             # Increased MTU to 4KB to reduce packet overhead
             # Increased Buffer Age to 200ms to allow larger chunks to form
-            MTU_SIZE = 4096  # 4KB (was 1400)
+            MTU_SIZE = 8192  # 4KB (was 1400)
             MAX_BUFFER_AGE = 0.2 # 200ms (was 100ms)
             # -----------------------------------------
             

@@ -32,14 +32,28 @@ def register_toys_ws_routes(app: FastAPI) -> None:
         try:
             while True:
                 # Wait for messages from toy device
+                # Wait for messages from toy device
                 try:
-                    message = await ws.receive_json()
-                    await session.handle_message(message)
-                except ValueError:
-                    # Try to receive as text
-                    text_message = await ws.receive_text()
-                    logger.warning(f"[Toys] Received text message (toys are audio-only): {text_message[:100]}")
-                    await session._send_error("Toys only support audio messages (JSON format)")
+                    # Use receive() to handle both text (JSON) and binary (Audio) frames
+                    message = await ws.receive()
+                    
+                    if "text" in message:
+                        # Handle JSON control messages
+                        import json
+                        try:
+                            data = json.loads(message["text"])
+                            await session.handle_message(data)
+                        except json.JSONDecodeError:
+                            logger.warning(f"[Toys] Received invalid JSON: {message['text'][:100]}")
+                            await session._send_error("Invalid JSON format")
+                            
+                    elif "bytes" in message:
+                        # Handle Binary Audio Frame
+                        await session.handle_message(message["bytes"])
+                        
+                except ValueError as e:
+                    logger.error(f"[Toys] Value error in receive loop: {e}")
+                    await session._send_error("Invalid message format")
                     
         except WebSocketDisconnect:
             logger.info(f"[Toys] WebSocket disconnected: {session_id}")

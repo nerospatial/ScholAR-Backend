@@ -26,6 +26,10 @@ class ToysWebSocketSession(BaseWebSocketSession):
     """
     Manages a single WebSocket session for Toys devices (audio-only).
     Extends BaseWebSocketSession with toys-specific audio-only handling.
+    
+    PROTOCOL CHANGE (Hybrid Binary/Text):
+    - Control messages (JSON): READY, START_QUERY_SESSION, etc.
+    - Audio data: Raw Binary Frames (Opcode 0x2) - PCM 16-bit
     """
 
     def __init__(self, websocket: WebSocket, session_id: str):
@@ -75,15 +79,23 @@ class ToysWebSocketSession(BaseWebSocketSession):
             self.response_streaming_started = True
             logger.info(f"[Toys] Audio-only response streaming started for {self.session_id}")
 
-    async def handle_message(self, message: Dict[str, Any]):
+    async def handle_message(self, message: Any):
         """
-        Process incoming WebSocket message - audio-only for toys.
-        Toys only support audio input, no video or text.
+        Process incoming WebSocket message.
+        - Dict: JSON control message
+        - Bytes: Raw Audio Data (16kHz PCM)
         """
         try:
+            # Handle Binary Audio Frame
+            if isinstance(message, bytes):
+                await self._handle_binary_audio(message)
+                return
+
+            # Handle JSON Control Message
             message_type = message.get("type")
 
             if message_type == "audio":
+                # Legacy: Handle Base64 encoded audio in JSON (if client still sends it)
                 await self._handle_audio_message(message)
             elif message_type == get_start_query_session_message():
                 await self.start_llm_session()
@@ -102,6 +114,28 @@ class ToysWebSocketSession(BaseWebSocketSession):
             logger.error(f"[Toys] Error handling message: {e}")
             await self._send_error(f"Error processing message: {str(e)}")
 
+    async def _handle_binary_audio(self, audio_data: bytes):
+        """Handle raw binary audio input (16kHz PCM 16-bit)"""
+        if not self.llm_provider or not self.active:
+            # If session not active, maybe auto-start? 
+            # For now, strict protocol: must send START_QUERY_SESSION first.
+            # But to be user-friendly, we could warn.
+            # logger.warning("[Toys] Received audio but session not active")
+            return
+
+        if audio_data:
+            try:
+                # Ensure streaming tasks are running
+                await self._start_response_streaming()
+                
+                # Send raw bytes to LLM
+                # User specified input is 16kHz. gemini_settings.send_sample_rate is 16000.
+                await self.llm_provider.send_audio(audio_data, gemini_settings.send_sample_rate)
+                logger.debug(f"[Toys] Binary audio sent to LLM: {len(audio_data)} bytes")
+            except Exception as e:
+                logger.error(f"[Toys] Error processing binary audio: {e}")
+                await self._send_error(f"Error processing audio: {str(e)}")
+
     async def _handle_audio_message(self, message: Dict[str, Any]):
         """Handle audio input from toy device"""
         if not self.llm_provider or not self.active:
@@ -111,6 +145,10 @@ class ToysWebSocketSession(BaseWebSocketSession):
         sample_rate = message.get("sample_rate", gemini_settings.send_sample_rate)
         if audio_data:
             try:
+                # Input from client is still likely Base64 JSON for now unless we change client too.
+                # The plan focused on OUTPUT optimization first.
+                # If client sends binary, handle_message needs to change to handle bytes.
+                # For now, assuming client input is still JSON-wrapped Base64 as per current `routes.py`
                 audio_bytes = base64.b64decode(audio_data)
                 # Ensure streaming tasks are running
                 await self._start_response_streaming()
@@ -126,24 +164,32 @@ class ToysWebSocketSession(BaseWebSocketSession):
             # Could implement interrupt handling in provider if needed
 
     async def _stream_audio_responses(self):
-        """Stream audio responses from Little Krishna to toy device with buffering"""
+        """
+        Stream audio responses from Little Krishna to toy device.
+        OPTIMIZED: Uses Binary Frames + Time-Based Buffering.
+        """
         try:
             if not self.llm_provider:
                 return
             logger.info(f"[Toys] Audio response streaming started for {self.session_id}")
             await self._send_message(get_query_responder_speaking_message())
             logger.info(f"[Toys] Little Krishna speaking...")
+            
+            import time
+            
             first_chunk = True
             chunk_count = 0
             total_bytes = 0
-            # BUFFERING CONFIGURATION
-            # We want to send chunks that are large enough to be efficient but small enough
-            # to not cause massive latency.
-            # 4KB - 8KB is a sweet spot for ESP32.
-            MIN_CHUNK_SIZE = 4096  # Wait for at least 4KB before sending
-            MAX_CHUNK_SIZE = 8192  # Split if larger than 8KB (safety)
-
+            
+            # OPTIMIZED BUFFERING CONFIGURATION
+            # MTU Safety: ~1400 bytes fits in standard TCP packet (1500 MTU - headers)
+            # Latency: Flush if data sits for > 100ms
+            MTU_SIZE = 1400 
+            MAX_BUFFER_AGE = 0.1 # 100ms
+            
             audio_buffer = bytearray()
+            last_send_time = time.time()
+
             async for audio_chunk in self.llm_provider.get_audio_response():
                 if not self.active:
                     break
@@ -152,48 +198,49 @@ class ToysWebSocketSession(BaseWebSocketSession):
 
                 # Append new data to buffer
                 audio_buffer.extend(audio_chunk)
-                # While we have enough data to send
-                while len(audio_buffer) >= MIN_CHUNK_SIZE:
-                    # Take a chunk of MAX_CHUNK_SIZE or whatever is available if it's huge
-                    send_size = min(len(audio_buffer), MAX_CHUNK_SIZE)
-
-                    # Extract chunk
-                    chunk_to_send = audio_buffer[:send_size]
-                    del audio_buffer[:send_size]
-
-                    await self._send_audio_chunk(chunk_to_send, first_chunk)
-                    if first_chunk:
-                        first_chunk = False
-
+                
+                # 1. Size-based Flush: Send full MTU-sized chunks immediately
+                while len(audio_buffer) >= MTU_SIZE:
+                    chunk_to_send = audio_buffer[:MTU_SIZE]
+                    del audio_buffer[:MTU_SIZE]
+                    
+                    await self._send_audio_chunk_binary(chunk_to_send, first_chunk)
+                    if first_chunk: first_chunk = False
+                    
                     chunk_count += 1
                     total_bytes += len(chunk_to_send)
-            # Flush remaining buffer
-            if len(audio_buffer) > 0:
-                # Split remaining if somehow huge (unlikely with logic above but safe)
-                for i in range(0, len(audio_buffer), MAX_CHUNK_SIZE):
-                    sub_chunk = audio_buffer[i:i + MAX_CHUNK_SIZE]
-                    await self._send_audio_chunk(sub_chunk, first_chunk)
-                    if first_chunk:
-                        first_chunk = False
+                    last_send_time = time.time()
+                
+                # 2. Time-based Flush: Check if buffer is stale
+                # Only flush if we have SOME data and it's been waiting too long
+                if len(audio_buffer) > 0 and (time.time() - last_send_time > MAX_BUFFER_AGE):
+                    await self._send_audio_chunk_binary(audio_buffer, first_chunk)
+                    if first_chunk: first_chunk = False
+                    
                     chunk_count += 1
-                    total_bytes += len(sub_chunk)
-            logger.info(f"[Toys] Audio stream ended. Sent {total_bytes} bytes total in {chunk_count} chunks")
+                    total_bytes += len(audio_buffer)
+                    audio_buffer.clear()
+                    last_send_time = time.time()
+                    logger.debug(f"[Toys] Time-based flush triggered for {self.session_id}")
+
+            # Flush remaining buffer at end of stream
+            if len(audio_buffer) > 0:
+                await self._send_audio_chunk_binary(audio_buffer, first_chunk)
+                chunk_count += 1
+                total_bytes += len(audio_buffer)
+
+            logger.info(f"[Toys] Audio stream ended. Sent {total_bytes} bytes total in {chunk_count} chunks (Binary)")
             await self._send_message(get_query_responder_done_message())
+            
         except Exception as e:
             logger.error(f"[Toys] Error streaming audio responses: {e}")
             await self._send_message(get_query_responder_done_message())
 
-    async def _send_audio_chunk(self, chunk: bytes, is_first: bool):
-        """Helper to encode and send audio chunk"""
+    async def _send_audio_chunk_binary(self, chunk: bytes, is_first: bool):
+        """Helper to send raw binary audio chunk"""
         if is_first:
-            logger.info(f"[Toys] First audio chunk sent ({len(chunk)} bytes)")
-
-        audio_b64 = base64.b64encode(chunk).decode()
-
-        await self._send_message({
-            "type": "audio_response",
-            "data": audio_b64,
-            "sample_rate": gemini_settings.receive_sample_rate,
-            "encoding": "pcm_s16le",
-            "channels": gemini_settings.audio_channels
-        })
+            logger.info(f"[Toys] First audio chunk sent ({len(chunk)} bytes) [BINARY]")
+        
+        # Send as Raw Binary Frame (Opcode 0x2)
+        # No JSON wrapping, No Base64 encoding
+        await self.websocket.send_bytes(chunk)

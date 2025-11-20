@@ -182,51 +182,23 @@ class ToysWebSocketSession(BaseWebSocketSession):
             chunk_count = 0
             total_bytes = 0
             
-            # --- OPTIMIZED BUFFERING CONFIGURATION ---
-            # Increased MTU to 4KB to reduce packet overhead
-            # Increased Buffer Age to 200ms to allow larger chunks to form
-            MTU_SIZE = 8192  # 4KB (was 1400)
-            MAX_BUFFER_AGE = 0.2 # 200ms (was 100ms)
-            # -----------------------------------------
-            
-            audio_buffer = bytearray()
-            last_send_time = time.time()
             async for audio_chunk in self.llm_provider.get_audio_response():
                 if not self.active:
                     break
                 if not audio_chunk:
                     continue
-                # Append new data to buffer
-                audio_buffer.extend(audio_chunk)
+
+                # DIRECT STREAMING (No Server-Side Buffering)
+                # Client (ESP32) has a ring buffer to handle jitter.
+                # We send chunks exactly as received from Gemini to minimize latency.
+                await self._send_audio_chunk_binary(audio_chunk, first_chunk)
                 
-                # 1. Size-based Flush: Send full MTU-sized chunks immediately
-                while len(audio_buffer) >= MTU_SIZE:
-                    chunk_to_send = audio_buffer[:MTU_SIZE]
-                    del audio_buffer[:MTU_SIZE]
-                    
-                    await self._send_audio_chunk_binary(chunk_to_send, first_chunk)
-                    if first_chunk: first_chunk = False
-                    
-                    chunk_count += 1
-                    total_bytes += len(chunk_to_send)
-                    last_send_time = time.time()
+                if first_chunk:
+                    first_chunk = False
                 
-                # 2. Time-based Flush: Check if buffer is stale
-                # Only flush if we have SOME data and it's been waiting too long
-                if len(audio_buffer) > 0 and (time.time() - last_send_time > MAX_BUFFER_AGE):
-                    await self._send_audio_chunk_binary(audio_buffer, first_chunk)
-                    if first_chunk: first_chunk = False
-                    
-                    chunk_count += 1
-                    total_bytes += len(audio_buffer)
-                    audio_buffer.clear()
-                    last_send_time = time.time()
-                    logger.debug(f"[Toys] Time-based flush triggered for {self.session_id}")
-            # Flush remaining buffer at end of stream
-            if len(audio_buffer) > 0:
-                await self._send_audio_chunk_binary(audio_buffer, first_chunk)
                 chunk_count += 1
-                total_bytes += len(audio_buffer)
+                total_bytes += len(audio_chunk)
+
             logger.info(f"[Toys] Audio stream ended. Sent {total_bytes} bytes total in {chunk_count} chunks (Binary)")
             await self._send_message(get_query_responder_done_message())
             
